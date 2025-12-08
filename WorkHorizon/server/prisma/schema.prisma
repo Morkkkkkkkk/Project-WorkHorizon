@@ -1,0 +1,567 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums (ตัวเลือก) ---
+
+// --- บทบาทของผู้ใช้ ---
+enum Role {
+  JOB_SEEKER
+  EMPLOYER
+  SUPER_ADMIN
+  FREELANCER
+}
+
+// --- สถานะบัญชี ---
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+// --- สถานะของใบสมัคร ---
+enum ApplicationStatus {
+  PENDING // รอดำเนินการ
+  REVIEWED // นายจ้างเปิดอ่านแล้ว (ตรวจสอบแล้ว)
+  SHORTLISTED // เข้ารอบสัมภาษณ์ (คัดเลือก)
+  REJECTED // ปฏิเสธ
+  HIRED // จ้างงาน
+  COMPLETED // งานเสร็จสิ้น (นับเป็นประวัติผลงาน)
+}
+
+// --- สถานะของงาน ---
+enum JobStatus {
+  DRAFT // แบบร่าง (ยังไม่เผยแพร่)
+  PUBLISHED // เผยแพร่แล้ว
+  ARCHIVED // ปิดรับสมัคร (เก็บไว้ดู)
+  FILLED // ได้คนแล้ว
+}
+
+// --- Enum สำหรับขนาดโฆษณา ---
+enum AdSize {
+  LARGE_SLIDE // 900x300 (สำหรับสไลด์โชว์หลัก)
+  SMALL_BANNER // 300x250 (สำหรับด้านข้าง)
+}
+
+// --- 1. ตารางหลัก (Core Models) ---
+
+model User {
+  id        String        @id @default(cuid())
+  email     String        @unique
+  password  String
+  role      Role          @default(JOB_SEEKER)
+  firstName String
+  lastName  String
+  phone     String
+  createdAt DateTime      @default(now())
+  status    AccountStatus @default(ACTIVE)
+
+  // --- อัปเกรด: โปรไฟล์ผู้ใช้ ---
+  profileImageUrl String? // รูปโปรไฟล์
+  bio             String? @db.Text // คำอธิบายตัวตนสั้นๆ
+
+  // --- ความสัมพันธ์ (Relations) ---
+  company           Company? // 1-to-1 ถ้าเป็น EMPLOYER (สำหรับ Employer)
+  applications      Application[] // สมัครงานได้หลายที่
+  freelancerProfile FreelancerProfile? // สำหรับ Freelancer
+  services          Service[]
+
+  // --- โปรไฟล์เชิงลึกของผู้หางาน ---
+  educations    Education[] // ประวัติการศึกษา (1-to-Many)
+  experiences   Experience[] // ประสบการณ์ทำงาน (1-to-Many)
+  resumes       Resume[] // เก็บไฟล์ Resume (1-to-Many)
+  skills        Skill[]        @relation("UserSkills") // M-to-N กับ Skill
+  savedJobs     SavedJob[] // งานที่บันทึกไว้
+  messages      Message[] // ข้อความที่ส่ง
+  notifications Notification[] // การแจ้งเตือน
+
+  // --- เพิ่มใหม่: การให้คะแนนและบันทึกภายใน ---
+  applicantRatings ApplicantRating[]
+  internalNotes    InternalNote[]
+
+  // ✅ เพิ่ม: ความสัมพันธ์สำหรับ Service Conversation (ต้องใช้ชื่อเดียวกับ @relation)
+  customerServices   ServiceConversation[] @relation("CustomerService")
+  freelancerServices ServiceConversation[] @relation("FreelancerService")
+
+  // ✅ เพิ่มใหม่: ระบบรีวิว Freelancer
+  freelancerWorksCompleted  FreelancerWork[]   @relation("FreelancerCompleted") // งานที่ Freelancer ทำเสร็จ
+  freelancerWorksHired      FreelancerWork[]   @relation("JobSeekerHired") // งานที่ Job Seeker จ้าง Freelancer
+  freelancerReviewsGiven    FreelancerReview[] @relation("ReviewGiver") // รีวิวที่ให้ผู้อื่น
+  freelancerReviewsReceived FreelancerReview[] @relation("ReviewReceiver") // รีวิวที่ได้รับ
+}
+
+model Company {
+  id          String  @id @default(cuid())
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade) // ลบ User ให้ลบ Company ด้วย
+  userId      String  @unique // 1-to-1
+  companyName String
+  description String  @db.Text
+  website     String?
+  address     String?
+
+  // --- เพิ่มใหม่: ข้อมูลบริษัท ---
+  logoUrl     String? // โลโก้บริษัท
+  companySize String? // ขนาดบริษัท (เช่น 1-50, 51-200)
+  isVerified  Boolean @default(false) // Admin ตรวจสอบอนุมัติหรือยัง
+
+  // --- ความสัมพันธ์ (Relations) ---
+  jobs       Job[] // 1 บริษัท มีได้หลายงาน
+  industry   Industry? @relation(fields: [industryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  industryId String?
+}
+
+model FreelancerProfile {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique // 1 User มี 1 FreelancerProfile
+
+  professionalTitle String? // ตำแหน่งงานที่ขาย เช่น "Senior Graphic Designer"
+  bio               String?  @db.Text // แนะนำตัวละเอียด
+  hourlyRate        Decimal? // ค่าจ้างต่อชั่วโมง (หรือเริ่มต้น)
+  portfolioUrl      String? // ลิงก์ผลงาน
+  yearsOfExperience Int? // จำนวนปีประสบการณ์
+  isVerified        Boolean  @default(false) // สถานะยืนยันตัวตน (เหมือน Company)
+  profileImageUrl   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ✅ เพิ่มใหม่: ความสัมพันธ์กับผลงานและรีวิว
+  completedWorks FreelancerWork[]   @relation("FreelancerProfile") // งานที่ทำเสร็จ
+  reviews        FreelancerReview[] @relation("FreelancerProfileReviews") // รีวิวที่ได้รับ
+}
+
+model Service {
+  id          String  @id @default(uuid())
+  title       String // ชื่อบริการ เช่น "รับทำการบ้านวิชาคณิตศาสตร์"
+  description String  @db.Text // รายละเอียด
+  price       Decimal // ราคาเริ่มต้น
+  coverImage  String? // รูปปกบริการ
+  category    String? // หมวดหมู่ (เช่น Homework, Design)
+
+  isActive  Boolean  @default(true) // เปิด/ปิดรับงาน
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mainCategoryId String?
+  mainCategory   MainCategory? @relation(fields: [mainCategoryId], references: [id])
+
+  // เชื่อมกับ Freelancer (User)
+  freelancerId String
+  freelancer   User   @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  //  ความสัมพันธ์กลับไปหา Service Conversation
+  serviceConversations ServiceConversation[]
+}
+
+model Job {
+  id               String   @id @default(cuid())
+  title            String
+  description      String   @db.Text
+  responsibilities String?  @db.Text
+  benefits         String?  @db.Text
+  workingHours     String?  @db.Text
+  location         String?
+  salaryMin        Decimal?
+  salaryMax        Decimal?
+  createdAt        DateTime @default(now())
+
+  // --- เพิ่มใหม่: สถานะและวันหมดอายุ ---
+  status    JobStatus @default(DRAFT)
+  expiresAt DateTime? // วันที่ปิดรับสมัคร
+
+  //  Field สำหรับ Salary Logic
+  isSalaryNegotiable Boolean @default(false)
+
+  // --- ความสัมพันธ์ (Relations) ---
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade) // ลบบริษัท ให้ลบงานด้วย
+  companyId String
+
+  // --- ส่วนสำคัญสำหรับการ Filter ---
+  subCategoryId  String?
+  subCategory    SubCategory? @relation(fields: [subCategoryId], references: [id])
+  mainCategoryId String
+  mainCategory   MainCategory @relation(fields: [mainCategoryId], references: [id])
+  jobType        JobType      @relation(fields: [jobTypeId], references: [id])
+  jobTypeId      String
+  province       Province     @relation(fields: [provinceId], references: [id])
+  provinceId     String
+  district       District     @relation(fields: [districtId], references: [id])
+  districtId     String
+
+  // --- เพิ่มใหม่: ทักษะที่ต้องการ (M-to-N) ---
+  requiredSkills Skill[] @relation("JobSkills")
+
+  // --- ความสัมพันธ์อื่นๆ ---
+  applications Application[] // 1 งาน มีคนสมัครได้หลายคน
+  savedBy      SavedJob[] // 1 งาน ถูกบันทึกได้โดยหลายคน
+
+  images JobImage[]
+
+  @@index([subCategoryId])
+  @@index([mainCategoryId])
+}
+
+model JobImage {
+  id        String   @id @default(cuid())
+  url       String // ที่อยู่ไฟล์ (เช่น /uploads/images/...)
+  createdAt DateTime @default(now())
+
+  // (ความสัมพันธ์: รูปนี้เป็นของ Job ไหน)
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  @@index([jobId])
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  status    ApplicationStatus @default(PENDING)
+  appliedAt DateTime          @default(now())
+
+  // --- เพิ่มใหม่: ข้อมูลตอนสมัคร ---
+  coverLetter String? @db.Text // จดหมายปะหน้า
+  resumeId    String? // --- เพิ่มใหม่: ID ของ Resume ที่ใช้สมัคร (ณ ตอนนั้น)
+  resume      Resume? @relation(fields: [resumeId], references: [id], onDelete: NoAction) // เก็บว่าใช้ Resume ไหนสมัคร
+
+  // --- ความสัมพันธ์ (Relations) ---
+  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade) // ลบงาน ให้ลบใบสมัครด้วย
+  jobId  String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) // ลบผู้ใช้ ให้ลบใบสมัครด้วย
+  userId String
+
+  // --- การสนทนาเกี่ยวกับใบสมัครนี้ ---
+  conversation Conversation? // 1 ใบสมัคร อาจมี 1 ห้องแชท
+
+  // --- เพิ่มใหม่: การให้คะแนนและบันทึกภายใน ---
+  ratings       ApplicantRating[]
+  internalNotes InternalNote[]
+
+  @@unique([jobId, userId]) // 1 คน สมัคร 1 งาน ได้แค่ 1 ครั้ง
+}
+
+model FeaturedSection {
+  id        String @id @default(cuid())
+  title     String // "เย็นฉ่ำ สะอาดจัด ประหยัดไฟ..."
+  sortOrder Int    @default(0) // (เผื่ออยากจัดลำดับ)
+
+  // (ความสัมพันธ์) ให้ Admin เลือก 1 หมวดหมู่หลัก
+  mainCategory   MainCategory @relation(fields: [mainCategoryId], references: [id])
+  mainCategoryId String
+
+  createdAt   DateTime @default(now())
+  contentType String   @default("JOB") // 'JOB' หรือ 'SERVICE'
+
+  @@index([mainCategoryId])
+}
+
+// --- 2. ตารางโปรไฟล์ผู้ใช้ (User Profile Models) ---
+
+// --- เพิ่มใหม่: ประวัติการศึกษา ---
+model Education {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  institute    String // สถาบัน
+  degree       String // วุฒิการศึกษา
+  fieldOfStudy String // สาขาวิชา
+  startDate    DateTime
+  endDate      DateTime? // อาจจะยังไม่จบ
+}
+
+// --- เพิ่มใหม่: ประสบการณ์ทำงาน ---
+model Experience {
+  id          String    @id @default(cuid())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  title       String // ตำแหน่ง
+  company     String // บริษัท
+  description String?   @db.Text // รายละเอียดงานที่ทำ
+  startDate   DateTime
+  endDate     DateTime? // อาจจะยังทำอยู่
+}
+
+// --- เพิ่มใหม่: ไฟล์ Resume ---
+model Resume {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  filename   String // ชื่อไฟล์
+  url        String // ที่อยู่ไฟล์ (เช่น S3, Firebase Storage)
+  uploadedAt DateTime @default(now())
+
+  applications Application[] // Resume 1 ไฟล์ ถูกใช้สมัครได้หลายงาน
+}
+
+// --- 3. ตารางข้อมูลหลัก (Data Masters / Filters) ---
+
+model MainCategory {
+  id       String   @id @default(cuid())
+  name     String   @unique
+  imageUrl String? // (สำหรับเก็บ Path รูปภาพที่อัปโหลด)
+  createAt DateTime @default(now())
+  updateAt DateTime @updatedAt
+
+  // (ความสัมพันธ์) 1 MainCategory มีได้หลาย SubCategory
+  subCategorys SubCategory[]
+
+  // (เพิ่ม) (ทำให้ค้นหาง่าย) 1 MainCategory มีได้หลาย Job
+  jobs Job[]
+
+  featuredSections FeaturedSection[]
+  services         Service[]
+}
+
+model SubCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  iconCode  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // (ความสัมพันธ์) 1 SubCategory อยู่ใน 1 MainCategory
+  mainCategoryId String
+  mainCategory   MainCategory @relation(fields: [mainCategoryId], references: [id], onDelete: Cascade)
+  // (ความสัมพันธ์) 1 SubCategory มีได้หลาย Job
+  jobs           Job[]
+
+  @@index([mainCategoryId])
+}
+
+model JobType {
+  id   String @id @default(cuid())
+  name String @unique
+  jobs Job[]
+}
+
+model Province {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  jobs      Job[]
+  districts District[]
+}
+
+model District {
+  id         String   @id @default(cuid())
+  name       String
+  province   Province @relation(fields: [provinceId], references: [id])
+  provinceId String
+  jobs       Job[]
+
+  @@unique([name, provinceId])
+}
+
+// --- เพิ่มใหม่: ตารางทักษะ (Skills) ---
+model Skill {
+  id   String @id @default(cuid())
+  name String @unique
+
+  // ความสัมพันธ์ M-to-N (Many-to-Many)
+  users User[] @relation("UserSkills") // User หลายคน มี Skill นี้ได้
+  jobs  Job[]  @relation("JobSkills") // Job หลายงาน ต้องการ Skill นี้ได้
+}
+
+// --- เพิ่มใหม่: ตารางอุตสาหกรรม (Industry) ---
+model Industry {
+  id   String @id @default(cuid())
+  name String @unique
+
+  companies Company[] // 1 อุตสาหกรรม มีได้หลายบริษัท
+}
+
+// --- 4. ตารางฟีเจอร์ (Feature Models) ---
+
+// --- เพิ่มใหม่: งานที่บันทึกไว้ (Saved Jobs) ---
+model SavedJob {
+  id      String   @id @default(cuid())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  job     Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId   String
+  savedAt DateTime @default(now())
+
+  @@unique([userId, jobId]) // 1 คน บันทึก 1 งาน ได้แค่ครั้งเดียว
+}
+
+// --- เพิ่มใหม่: ระบบแชท (Messaging) ---
+model Conversation {
+  id String @id @default(cuid())
+
+  // 1 การสนทนา เกิดจาก 1 ใบสมัคร
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId String      @unique
+
+  messages Message[] // 1 ห้องแชท มีได้หลายข้อความ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  // --- การเชื่อมโยงเดิม (สำหรับ Job Application) ---
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // ✅ เพิ่ม: การเชื่อมโยงใหม่ (สำหรับ Service)
+  serviceConversationId String?
+  serviceConversation   ServiceConversation? @relation(fields: [serviceConversationId], references: [id])
+
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderId String // ID ของ User ที่ส่ง
+}
+
+model ServiceConversation {
+  id        String  @id @default(uuid())
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  user1Id String // Customer (คนทัก)
+  user1   User   @relation("CustomerService", fields: [user1Id], references: [id])
+
+  user2Id String // Freelancer (เจ้าของงาน)
+  user2   User   @relation("FreelancerService", fields: [user2Id], references: [id])
+
+  // ✅ เชื่อมโยงกลับไปที่ตารางข้อความ (Message)
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // กำหนดให้งานและลูกค้าคู่นี้ มีได้แค่ 1 ห้องแชทเท่านั้น
+  @@unique([serviceId, user1Id])
+}
+
+//  ระบบแจ้งเตือน (Notifications) ---
+model Notification {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String // ผู้รับการแจ้งเตือน
+  content   String // เนื้อหา (เช่น "บริษัท A เปิดอ่านใบสมัครของคุณแล้ว")
+  link      String? // ลิงก์ที่จะพาไป (เช่น /application/123)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ---  ตารางสำหรับโฆษณา (Admin Ads) ---
+model Advertisement {
+  id        String   @id @default(cuid())
+  title     String // หัวข้อโฆษณา
+  imageUrl  String // URL ของรูปภาพ (ที่เราเก็บใน /uploads)
+  linkUrl   String? // URL ที่จะลิงก์ไป
+  isActive  Boolean  @default(true) // Admin เปิด/ปิดได้
+  adSize    AdSize   @default(LARGE_SLIDE)
+  createdAt DateTime @default(now())
+}
+
+model ApplicantRating {
+  id            String      @id @default(cuid())
+  rating        Int // (1-5)
+  comment       String?     @db.Text
+  rater         User        @relation(fields: [raterId], references: [id], onDelete: Cascade)
+  raterId       String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId String
+
+  @@unique([raterId, applicationId]) // (1 User ให้คะแนน 1 ใบสมัคร ได้ 1 ครั้ง)
+}
+
+model InternalNote {
+  id            String      @id @default(cuid())
+  content       String      @db.Text
+  author        User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId      String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId String
+  createdAt     DateTime    @default(now())
+}
+
+// ✅ ตารางใหม่: FreelancerWork - บันทึกงานที่ Freelancer ทำเสร็จ
+// (JOB_SEEKER ทักคุยกับ FREELANCER แล้วตกลงกัน จากนั้น FREELANCER กดว่างานเสร็จ)
+model FreelancerWork {
+  id String @id @default(cuid())
+
+  // ✅ ผู้จ้าง: JOB_SEEKER ที่จ้าง Freelancer
+  jobSeekerId String
+  jobSeeker   User   @relation("JobSeekerHired", fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  // ✅ ผู้รับจ้าง: FREELANCER ที่ทำงาน
+  freelancerId String
+  freelancer   User   @relation("FreelancerCompleted", fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  // ✅ ผูกกับ FreelancerProfile สำหรับนับผลงาน
+  freelancerProfileId String
+  freelancerProfile   FreelancerProfile @relation("FreelancerProfile", fields: [freelancerProfileId], references: [id], onDelete: Cascade)
+
+  // ✅ รายละเอียดงาน
+  jobTitle    String // ชื่องาน เช่น "ออกแบบโลโก้บริษัท"
+  description String?              @db.Text // รายละเอียดงานที่ทำ
+  status      FreelancerWorkStatus @default(OFFER_PENDING) // สถานะงาน
+  completedAt DateTime? // วันที่ Freelancer กด "เสร็จสิ้น" (เปลี่ยนจาก default now)
+
+  // ✅ Fields สำหรับ Advanced Workflow
+  price         Decimal? // ราคาที่เสนอ (Custom Offer)
+  duration      Int? // ระยะเวลาทำงาน (วัน)
+  revisionCount Int      @default(0) // จำนวนครั้งที่ขอแก้
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ✅ ความสัมพันธ์: งานนี้อาจมีรีวิว (1-to-1)
+  review FreelancerReview?
+
+  @@index([freelancerId])
+  @@index([jobSeekerId])
+  @@index([freelancerProfileId])
+}
+
+// ✅ ตารางใหม่: FreelancerReview - รีวิวและคะแนนจาก JOB_SEEKER
+model FreelancerReview {
+  id String @id @default(cuid())
+
+  // ✅ คะแนน 1-5 ดาว
+  rating Int // 1-5
+
+  // ✅ ความคิดเห็น
+  comment String? @db.Text
+
+  // ✅ ผูกกับงานที่เสร็จสิ้น (1-to-1)
+  workId String         @unique
+  work   FreelancerWork @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  // ✅ ผู้ให้รีวิว: JOB_SEEKER
+  reviewerId String
+  reviewer   User   @relation("ReviewGiver", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  // ✅ ผู้รับรีวิว: FREELANCER
+  reviewedId String
+  reviewed   User   @relation("ReviewReceiver", fields: [reviewedId], references: [id], onDelete: Cascade)
+
+  // ✅ ผูกกับ FreelancerProfile สำหรับแสดงรีวิว
+  freelancerProfileId String
+  freelancerProfile   FreelancerProfile @relation("FreelancerProfileReviews", fields: [freelancerProfileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([reviewerId])
+  @@index([reviewedId])
+  @@index([freelancerProfileId])
+}
+
+enum FreelancerWorkStatus {
+  OFFER_PENDING // เสนอราคา (รอจ้าง)
+  IN_PROGRESS // กำลังทำงาน
+  SUBMITTED // ส่งงานแล้ว (รอตรวจ)
+  REVISION_REQUESTED // ขอแก้ไข
+  COMPLETED // เสร็จสิ้น
+  DISPUTED // มีข้อพิพาท
+  CANCELLED // ยกเลิก
+}
