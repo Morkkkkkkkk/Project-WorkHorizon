@@ -33,7 +33,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  Menu, X, ChevronDown, Bell, LogOut, User, Briefcase,
+  Menu, X, ChevronDown, Bell, LogOut, User, Briefcase, Wallet,
   LayoutGrid, Settings, FileText, Heart, MessageSquare,
   Shield, ChevronRight, Building2, Plus
 } from 'lucide-react';
@@ -424,6 +424,12 @@ const Header = () => {
                         <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-orange-600 rounded-xl transition-all">
                           <User size={18} /> โปรไฟล์ของฉัน
                         </Link>
+
+                        {(isJobSeeker || isFreelancer) && (
+                          <Link to="/wallet" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-orange-600 rounded-xl transition-all">
+                            <Wallet size={18} /> กระเป๋าเงิน
+                          </Link>
+                        )}
 
                         {/* ✅ JOB SEEKER Links */}
                         {isJobSeeker && (

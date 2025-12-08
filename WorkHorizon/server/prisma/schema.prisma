@@ -51,25 +51,28 @@ enum AdSize {
 // --- 1. ตารางหลัก (Core Models) ---
 
 model User {
-  id        String        @id @default(cuid())
-  email     String        @unique
-  password  String
-  role      Role          @default(JOB_SEEKER)
-  firstName String
-  lastName  String
-  phone     String
-  createdAt DateTime      @default(now())
-  status    AccountStatus @default(ACTIVE)
+  id            String        @id @default(cuid())
+  email         String        @unique
+  password      String
+  role          Role          @default(JOB_SEEKER)
+  firstName     String
+  lastName      String
+  phone         String
+  createdAt     DateTime      @default(now())
+  walletBalance Decimal       @default(0.00) // 💰 ยอดเงินใน Wallet (เริ่มที่ 0)
+  status        AccountStatus @default(ACTIVE)
 
   // --- อัปเกรด: โปรไฟล์ผู้ใช้ ---
   profileImageUrl String? // รูปโปรไฟล์
   bio             String? @db.Text // คำอธิบายตัวตนสั้นๆ
 
   // --- ความสัมพันธ์ (Relations) ---
-  company           Company? // 1-to-1 ถ้าเป็น EMPLOYER (สำหรับ Employer)
-  applications      Application[] // สมัครงานได้หลายที่
-  freelancerProfile FreelancerProfile? // สำหรับ Freelancer
-  services          Service[]
+  company              Company? // 1-to-1 ถ้าเป็น EMPLOYER (สำหรับ Employer)
+  applications         Application[] // สมัครงานได้หลายที่
+  freelancerProfile    FreelancerProfile? // สำหรับ Freelancer
+  services             Service[]
+  transactions         Transaction[] // ✅ ความสัมพันธ์: ผู้ใช้นี้มีการชำระเงินหลายครั้ง
+  transactionsReceived Transaction[]      @relation("TransactionReceiver")
 
   // --- โปรไฟล์เชิงลึกของผู้หางาน ---
   educations    Education[] // ประวัติการศึกษา (1-to-Many)
@@ -518,6 +521,9 @@ model FreelancerWork {
   // ✅ ความสัมพันธ์: งานนี้อาจมีรีวิว (1-to-1)
   review FreelancerReview?
 
+  // ✅ ความสัมพันธ์: งานนี้อาจมีการชำระเงิน (1-to-Many)
+  transactions Transaction[]
+
   @@index([freelancerId])
   @@index([jobSeekerId])
   @@index([freelancerProfileId])
@@ -564,4 +570,44 @@ enum FreelancerWorkStatus {
   COMPLETED // เสร็จสิ้น
   DISPUTED // มีข้อพิพาท
   CANCELLED // ยกเลิก
+}
+
+// --- เพิ่มใหม่: ระบบการเงิน (Mock Payment) ---
+model Transaction {
+  id         String        @id @default(cuid())
+  amount     Decimal // จำนวนเงิน
+  status     PaymentStatus @default(PENDING)
+  slipUrl    String? // เก็บรูปสลิป (ถ้ามี)
+  gatewayRef String? // เลขอ้างอิงจากธนาคารจำลอง (Mock ID)
+
+  method PaymentMethod // 👈 จ่ายด้วยอะไร?
+
+  // ใครเป็นคนจ่าย
+  payer   User   @relation(fields: [payerId], references: [id], onDelete: Cascade)
+  payerId String
+
+  // จ่ายค่าอะไร (เช่น จ้างงาน Freelancer)
+  work   FreelancerWork? @relation(fields: [workId], references: [id])
+  workId String?
+
+  // คนรับ (Receiver) - ใส่ ? เผื่อเป็นการเติมเงินเข้า Wallet ตัวเอง
+  receiver   User?   @relation("TransactionReceiver", fields: [receiverId], references: [id])
+  receiverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- สถานะการชำระเงิน ---
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// --- วิธีการชำระเงิน ---
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  WALLET
 }

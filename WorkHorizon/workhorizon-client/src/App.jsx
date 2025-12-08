@@ -42,6 +42,8 @@ import Layout from "./components/Layout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 
+import WalletPage from './pages/WalletPage';   // 👈 Import มา
+
 function App() {
   return (
     <Routes>
@@ -79,6 +81,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        {/* --- (Job Seeker / Freelancer Only) --- */}
+        <Route
+          path="/wallet"
+          element={
+            <ProtectedRoute role="JOB_SEEKER">
+              <WalletPage />
             </ProtectedRoute>
           }
         />

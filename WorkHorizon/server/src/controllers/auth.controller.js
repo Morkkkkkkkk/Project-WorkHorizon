@@ -134,6 +134,9 @@ export const getMe = async (req, res) => {
          bio: true,
          status: true,
          
+         //  เพิ่ม walletBalance
+         walletBalance: true,
+
          // ดึงข้อมูลบริษัท (เฉพาะ logoUrl) ถ้า user นี้มี company
          company: {
            select: {
@@ -149,7 +152,6 @@ export const getMe = async (req, res) => {
     });
 
     
-         
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });

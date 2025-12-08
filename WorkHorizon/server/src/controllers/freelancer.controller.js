@@ -324,6 +324,14 @@ export const createWork = async (req, res, next) => {
       },
     });
 
+    // Send System Message
+    await sendSystemMessageToPair(
+      freelancerId,
+      jobSeekerId,
+      `📄 คุณได้รับใบเสนอราคาใหม่: "${jobTitle}"\nราคา: ฿${parsedPrice.toLocaleString()}\nระยะเวลา: ${parsedDuration} วัน`,
+      freelancerId
+    );
+
     res.status(201).json({ message: "ส่งใบเสนอราคาเรียบร้อยแล้ว", work });
   } catch (error) {
     console.error("Error in createWork:", error);
@@ -351,6 +359,8 @@ export const updateWorkStatus = async (req, res, next) => {
     }
 
     let updateData = { status };
+    let systemMsg = null;
+    const actorName = req.user.firstName;
 
     // --- State Machine Logic ---
 
@@ -362,6 +372,8 @@ export const updateWorkStatus = async (req, res, next) => {
           .json({ error: "Only Job Seeker can accept offer" });
       if (work.status !== "OFFER_PENDING")
         return res.status(400).json({ error: "Invalid status transition" });
+
+      systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคางาน "${work.jobTitle}" แล้ว! เริ่มงานได้เลย`;
     }
 
     // 2. Submit Work (Freelancer Only)
@@ -372,6 +384,8 @@ export const updateWorkStatus = async (req, res, next) => {
           .json({ error: "Only Freelancer can submit work" });
       if (work.status !== "IN_PROGRESS" && work.status !== "REVISION_REQUESTED")
         return res.status(400).json({ error: "Invalid status transition" });
+
+      systemMsg = `📦 ${actorName} ได้ส่งงาน "${work.jobTitle}" แล้ว กรุณาตรวจสอบ`;
     }
 
     // 3. Request Revision (Job Seeker Only)
@@ -383,6 +397,8 @@ export const updateWorkStatus = async (req, res, next) => {
       if (work.status !== "SUBMITTED")
         return res.status(400).json({ error: "Invalid status transition" });
       updateData.revisionCount = { increment: 1 };
+
+      systemMsg = `📝 ${actorName} ขอให้แก้ไขงาน "${work.jobTitle}"`;
     }
 
     // 4. Complete Work (Job Seeker Only)
@@ -394,11 +410,14 @@ export const updateWorkStatus = async (req, res, next) => {
       if (work.status !== "SUBMITTED")
         return res.status(400).json({ error: "Invalid status transition" });
       updateData.completedAt = new Date();
+
+      systemMsg = `🎉 ${actorName} ได้อนุมัติงาน "${work.jobTitle}" เรียบร้อยแล้ว!`;
     }
 
     // 5. Dispute (Both)
     if (status === "DISPUTED") {
       // Allow from any active state
+      systemMsg = `⚠️ ${actorName} ได้เปิดข้อพิพาทสำหรับงาน "${work.jobTitle}"`;
     }
 
     const updatedWork = await prisma.freelancerWork.update({
@@ -406,9 +425,62 @@ export const updateWorkStatus = async (req, res, next) => {
       data: updateData,
     });
 
+    // Send System Message if applicable
+    if (systemMsg) {
+      await sendSystemMessageToPair(
+        work.freelancerId,
+        work.jobSeekerId,
+        systemMsg,
+        userId
+      );
+    }
+
     res.json({ message: "Status updated", work: updatedWork });
   } catch (error) {
     next(error);
+  }
+};
+
+// ✅ HELPER: Send logic
+const sendSystemMessageToPair = async (
+  freelancerId,
+  jobSeekerId,
+  content,
+  senderId
+) => {
+  try {
+    // 1. Try to find existing Service Conversation
+    let conversation = await prisma.serviceConversation.findFirst({
+      where: {
+        OR: [
+          { user1Id: freelancerId, user2Id: jobSeekerId },
+          { user1Id: jobSeekerId, user2Id: freelancerId },
+        ],
+      },
+    });
+
+    // 2. If not found, create one
+    if (!conversation) {
+      conversation = await prisma.serviceConversation.create({
+        data: {
+          user1Id: freelancerId,
+          user2Id: jobSeekerId,
+          serviceId: null, // Not tied to a specific service listing strictly, or nullable
+        },
+      });
+    }
+
+    // 3. Create Message
+    await prisma.message.create({
+      data: {
+        content,
+        senderId: senderId, // The person who triggered the action
+        serviceConversationId: conversation.id,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to send auto-message:", err);
+    // Don't throw, let the main action succeed
   }
 };
 

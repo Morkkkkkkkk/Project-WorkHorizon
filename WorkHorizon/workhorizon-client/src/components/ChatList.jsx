@@ -107,8 +107,10 @@ const ChatList = ({ onItemClick, className = "" }) => {
 
                             {/* Last Message Preview */}
                             <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-bold text-slate-800' : 'text-slate-600'}`}>
-                                {lastMessage.senderId === otherUser.id ? '' : 'คุณ: '}
-                                {lastMessage.content || 'ส่งรูปภาพ'}
+                                {lastMessage.content
+                                    ? <>{lastMessage.senderId === otherUser.id ? '' : 'คุณ: '}{lastMessage.content}</>
+                                    : (lastMessage.createdAt ? 'ส่งรูปภาพ' : 'เริ่มการสนทนา')
+                                }
                             </p>
                         </div>
 
