@@ -88,7 +88,7 @@ function App() {
         <Route
           path="/wallet"
           element={
-            <ProtectedRoute role="JOB_SEEKER">
+            <ProtectedRoute>
               <WalletPage />
             </ProtectedRoute>
           }

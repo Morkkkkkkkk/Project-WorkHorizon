@@ -6,10 +6,11 @@ import { freelancerApi } from '../api/freelancerApi';
 import Modal from '../components/Modal';
 import { toast } from 'react-toastify';
 import MyHireCard from '../components/MyHireCard';
+import PaymentModal from '../components/PaymentModal'; // ✅ 1. Import Payment Modal
 
 const MyHiresPage = () => {
     const [works, setWorks] = useState([]);
-    const [activeTab, setActiveTab] = useState('ACTIVE'); // ACTIVE | OFFER_PENDING | COMPLETED
+    const [activeTab, setActiveTab] = useState('ACTIVE');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -19,6 +20,10 @@ const MyHiresPage = () => {
     const [selectedWorkId, setSelectedWorkId] = useState(null);
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState('');
+
+    // ✅ 2. Payment Modal State (เพิ่มใหม่)
+    const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+    const [paymentData, setPaymentData] = useState(null);
 
     useEffect(() => {
         fetchHires();
@@ -37,23 +42,63 @@ const MyHiresPage = () => {
         }
     };
 
+    // ✅ 3. แก้ไขฟังก์ชันนี้เพื่อดักจับการจ่ายเงิน
     const handleStatusUpdate = async (workId, newStatus) => {
-        let confirmMessage = '';
-        if (newStatus === 'IN_PROGRESS') confirmMessage = 'คุณต้องการ "ตอบรับใบเสนอราคา" และเริ่มงานใช่หรือไม่?';
-        if (newStatus === 'REVISION_REQUESTED') confirmMessage = 'คุณต้องการ "ส่งคำขอแก้ไขงาน" ใช่หรือไม่?';
-        if (newStatus === 'COMPLETED') confirmMessage = 'คุณต้องการ "อนุมัติงาน" และเสร็จสิ้นโปรเจกต์ใช่หรือไม่?';
+        
+        // --- CASE A: ถ้าเป็นการเริ่มงาน (IN_PROGRESS) ต้องจ่ายเงินก่อน ---
+        if (newStatus === 'IN_PROGRESS') {
+            const workToPay = works.find(w => w.id === workId);
+            if (workToPay) {
+                // เตรียมข้อมูลสำหรับ Modal จ่ายเงิน
+                setPaymentData({
+                    title: `ชำระเงินเพื่อเริ่มงาน: ${workToPay.jobTitle}`,
+                    amount: workToPay.price || 0, // ยอดเงินที่ตกลงกัน
+                    receiverId: workToPay.freelancerId, // ปลายทาง (แต่ระบบจะกันไว้ก่อน)
+                    workId: workId,
+                    // flag พิเศษเพื่อให้ Backend รู้ว่าเป็น Escrow (ถ้ามี)
+                });
+                setIsPaymentOpen(true); // เปิด Modal
+            }
+            return; // ⛔ หยุดทำงานตรงนี้ รอจ่ายเงินเสร็จค่อยไปต่อ
+        }
 
-        if (!window.confirm(confirmMessage)) return;
+        // --- CASE B: สถานะอื่นๆ (ไม่ต้องจ่ายเงิน) ---
+        let confirmMessage = '';
+        if (newStatus === 'REVISION_REQUESTED') confirmMessage = 'คุณต้องการ "ส่งคำขอแก้ไขงาน" ใช่หรือไม่?';
+        if (newStatus === 'COMPLETED') confirmMessage = 'คุณต้องการ "อนุมัติงาน" และเสร็จสิ้นโปรเจกต์ใช่หรือไม่? \n(ระบบจะโอนเงินให้ฟรีแลนซ์ทันที)';
+
+        if (confirmMessage && !window.confirm(confirmMessage)) return;
 
         try {
             await freelancerApi.updateWorkStatus(workId, newStatus);
             fetchHires();
-            toast.success('อัปเดตสถานะเรียบร้อยแล้ว');
+            
+            if (newStatus === 'COMPLETED') {
+                toast.success('อนุมัติงานเรียบร้อย! โอนเงินให้ฟรีแลนซ์แล้ว 🎉');
+            } else {
+                toast.success('อัปเดตสถานะเรียบร้อยแล้ว');
+            }
         } catch (err) {
             toast.error(err.message);
         }
     };
 
+    // ✅ 4. Callback เมื่อจ่ายเงินสำเร็จ
+    const handlePaymentSuccess = async () => {
+        // เมื่อจ่ายเงินผ่าน Modal เสร็จแล้ว -> อัปเดตสถานะเป็น IN_PROGRESS
+        try {
+            if (paymentData && paymentData.workId) {
+                await freelancerApi.updateWorkStatus(paymentData.workId, 'IN_PROGRESS');
+                toast.success('ชำระเงินเรียบร้อย เริ่มต้นโปรเจกต์แล้ว! 🚀');
+                fetchHires(); // โหลดข้อมูลใหม่
+                setActiveTab('ACTIVE'); // ย้ายไปแท็บงานที่กำลังทำ
+            }
+        } catch (err) {
+            toast.error("เกิดข้อผิดพลาดในการเริ่มงาน: " + err.message);
+        }
+    };
+
+    // ... (Review Logic เดิม เหมือนเดิมทุกอย่าง) ...
     const handleOpenReviewModal = (workId) => {
         setSelectedWorkId(workId);
         setReviewRating(5);
@@ -64,7 +109,6 @@ const MyHiresPage = () => {
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         try {
-            // Find freelancerId from works
             const work = works.find(w => w.id === selectedWorkId);
             if (!work) return;
 
@@ -82,9 +126,8 @@ const MyHiresPage = () => {
         }
     };
 
-    // Filter works
+    // ... (Filter Logic เดิม) ...
     const filteredWorks = works.filter(work => {
-        // 1. Filter by Tab
         let matchesTab = false;
         if (activeTab === 'ACTIVE') {
             matchesTab = ['IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'DISPUTED'].includes(work.status);
@@ -92,7 +135,6 @@ const MyHiresPage = () => {
             matchesTab = work.status === activeTab;
         }
 
-        // 2. Filter by Search
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
             work.jobTitle.toLowerCase().includes(searchLower) ||
@@ -121,7 +163,7 @@ const MyHiresPage = () => {
         <div className="min-h-screen bg-slate-50 py-10" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
             <div className="container mx-auto px-4 max-w-5xl">
 
-                {/* Header Section */}
+                {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                     <div>
                         <h1 className="text-3xl font-extrabold text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">
@@ -131,16 +173,14 @@ const MyHiresPage = () => {
                     </div>
                 </div>
 
-                {/* Search & Filter Section */}
+                {/* Filters & Search */}
                 <div className="space-y-4 mb-8">
-                    {/* Tabs */}
                     <div className="bg-slate-200/50 p-1.5 rounded-2xl flex overflow-x-auto">
                         <TabButton id="ACTIVE" label="งานที่กำลังทำ" icon={Briefcase} colorClass="text-blue-600" />
                         <TabButton id="OFFER_PENDING" label="ข้อเสนอที่รอตอบรับ" icon={Clock} colorClass="text-orange-600" />
                         <TabButton id="COMPLETED" label="ประวัติการจ้างงาน" icon={CheckCircle} colorClass="text-emerald-600" />
                     </div>
 
-                    {/* Search Bar */}
                     <div className="relative">
                         <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -153,7 +193,7 @@ const MyHiresPage = () => {
                     </div>
                 </div>
 
-                {/* Content List */}
+                {/* List */}
                 <div className="space-y-4">
                     {isLoading ? (
                         <div className="py-20 text-center">
@@ -183,7 +223,7 @@ const MyHiresPage = () => {
                     )}
                 </div>
 
-                {/* Data Summary (Footer) */}
+                {/* Footer Summary */}
                 {!isLoading && filteredWorks.length > 0 && (
                     <div className="mt-6 text-center text-sm text-slate-400">
                         แสดงทั้งหมด {filteredWorks.length} รายการ
@@ -197,6 +237,7 @@ const MyHiresPage = () => {
                     title="ให้คะแนนและรีวิวฟรีแลนซ์"
                 >
                     <form onSubmit={handleSubmitReview} className="p-6 space-y-6">
+                        {/* ... (Review Form Content เดิม) ... */}
                         <div className="text-center">
                             <label className="block text-base font-bold text-slate-800 mb-3">ความพึงพอใจของคุณ</label>
                             <div className="flex justify-center gap-2">
@@ -214,15 +255,7 @@ const MyHiresPage = () => {
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-2 font-medium text-slate-600">
-                                {reviewRating === 5 && "ยอดเยี่ยม! 🤩"}
-                                {reviewRating === 4 && "ดีมาก 😄"}
-                                {reviewRating === 3 && "พอใช้ 🙂"}
-                                {reviewRating === 2 && "ควรปรับปรุง 😕"}
-                                {reviewRating === 1 && "แย่มาก 😫"}
-                            </div>
                         </div>
-
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">ความคิดเห็นเพิ่มเติม</label>
                             <textarea
@@ -234,24 +267,22 @@ const MyHiresPage = () => {
                                 required
                             />
                         </div>
-
                         <div className="flex gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsReviewModalOpen(false)}
-                                className="flex-1 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                type="submit"
-                                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-blue-200 transition-all transform active:scale-95"
-                            >
-                                ส่งรีวิว
-                            </button>
+                            <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors">ยกเลิก</button>
+                            <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-bold hover:shadow-lg transition-all">ส่งรีวิว</button>
                         </div>
                     </form>
                 </Modal>
+
+                {/* ✅ 5. Payment Modal Component */}
+                {paymentData && (
+                    <PaymentModal
+                        isOpen={isPaymentOpen}
+                        onClose={() => setIsPaymentOpen(false)}
+                        paymentData={paymentData}
+                        onSuccess={handlePaymentSuccess}
+                    />
+                )}
 
             </div>
         </div>

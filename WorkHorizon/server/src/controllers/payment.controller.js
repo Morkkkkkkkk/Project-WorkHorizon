@@ -104,7 +104,52 @@ export const processPayment = async (req, res) => {
     console.error(error);
     return res.status(500).json({ message: "Server Error" });
   }
+}
+
+// ✅ ฟังก์ชันถอนเงิน
+export const withdraw = async (req, res) => {
+  const { userId, amount, bankAccount } = req.body;
+
+  try {
+    if (!userId || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "ข้อมูลไม่ถูกต้อง" });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+
+    if (parseFloat(user.walletBalance) < parseFloat(amount)) {
+      return res.status(400).json({ success: false, message: "ยอดเงินไม่เพียงพอ" });
+    }
+
+    // 1. ตัดเงิน
+    await prisma.user.update({
+      where: { id: userId },
+      data: { walletBalance: { decrement: parseFloat(amount) } }
+    });
+
+    // 2. บันทึก Transaction
+    // สำหรับการถอน เราอาจจะใช้ payerId เป็น user เอง และ receiverId เป็น null (ออกไปข้างนอก)
+    await prisma.transaction.create({
+      data: {
+        amount: parseFloat(amount),
+        status: "SUCCESS", // สมมติว่าสำเร็จทันที
+        method: "BANK_TRANSFER", 
+        payerId: userId,
+        receiverId: null, // เงินออกจากระบบ
+        workId: null,
+        gatewayRef: `WITHDRAW-${Date.now()}`
+      }
+    });
+
+    return res.json({ success: true, message: "แจ้งถอนเงินสำเร็จ" });
+
+  } catch (error) {
+    console.error("Withdraw Error:", error);
+    return res.status(500).json({ message: "Server Error" });
+  }
 };
+
 
 export const getMyTransactions = async (req, res) => {
     // ฟังก์ชันดึงประวัติการจ่ายเงินของ User (ถ้าต้องการ)
@@ -118,4 +163,4 @@ export const getMyTransactions = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: "Error fetching transactions" });
     }
-};
+  }

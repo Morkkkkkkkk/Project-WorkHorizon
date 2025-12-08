@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { serviceApi } from '../api/serviceApi';
+import { paymentApi } from '../api/paymentApi'; // ✅ Import Payment API
+import { useAuth } from '../contexts/AuthContext'; // ✅ Import Auth
 import { BACKEND_URL } from '../api/apiClient';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
@@ -15,16 +17,27 @@ import {
   Star,
   MapPin,
   CheckCircle2,
-  Phone
+  Phone,
+  CreditCard,
+  Wallet,
+  Building2,
+  Briefcase
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 const ServiceDetailPage = () => {
   const { id } = useParams();
+  const { user } = useAuth(); // ✅ Get Current User
   const [service, setService] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  // ✅ Payment States
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('WALLET');
+  const [isPaying, setIsPaying] = useState(false);
+  const [creditCardNum, setCreditCardNum] = useState('');
 
   useEffect(() => {
     const fetchService = async () => {
@@ -75,7 +88,55 @@ const ServiceDetailPage = () => {
   const handleReviewSubmit = (result) => {
     toast.success('ส่งรีวิวเรียบร้อยแล้ว!');
     setIsReviewModalOpen(false);
-    // Optionally refresh service data to show new review
+  };
+
+  // ✅ Handle Payment Logic
+  const handleHireClick = () => {
+    if (!user) {
+      toast.info('กรุณาเข้าสู่ระบบก่อนจ้างงาน');
+      navigate('/login');
+      return;
+    }
+    // ถ้าตัวเองเป็นคนสร้างบริการ ห้ามจ้างตัวเอง
+    if (user.id === service.freelancerId) {
+      toast.error('คุณไม่สามารถจ้างงานตัวเองได้');
+      return;
+    }
+    setIsPaymentModalOpen(true);
+  };
+
+  const processPayment = async () => {
+    if (paymentMethod === 'CREDIT_CARD' && !creditCardNum) {
+      toast.error('กรุณาระบุเลขบัตรเครดิต');
+      return;
+    }
+
+    setIsPaying(true);
+    try {
+      const payload = {
+        payerId: user.id,
+        receiverId: service.freelancerId, // ✅ Direct Transfer to Freelancer
+        amount: service.price,
+        method: paymentMethod,
+        cardNumber: paymentMethod === 'CREDIT_CARD' ? creditCardNum : undefined
+        // workId: null (ไม่ได้สร้าง Work record ในที่นี้ ตาม Scope โจทย์)
+      };
+
+      const res = await paymentApi.charge(payload);
+
+      if (res.data.success) {
+        toast.success(`ชำระเงิน ${service.price.toLocaleString()} บาท เรียบร้อย!`);
+        setIsPaymentModalOpen(false);
+        // อาจจะ navigate ไปหน้า Chat หรือ Success Page
+      } else {
+        toast.error(res.data.message || 'ชำระเงินไม่สำเร็จ');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการชำระเงิน');
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   return (
@@ -128,8 +189,6 @@ const ServiceDetailPage = () => {
                       <Star size={14} className="fill-current" />
                       <span className="font-bold text-slate-700">New Seller</span>
                     </div>
-                    <span className="text-slate-300">•</span>
-                    <span>{service.freelancer?.email}</span>
                   </div>
                 </div>
               </div>
@@ -189,12 +248,6 @@ const ServiceDetailPage = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-                    {service.freelancer?.phone && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                        <Phone size={16} className="text-blue-500" />
-                        <span className="font-medium">{service.freelancer?.phone}</span>
-                      </div>
-                    )}
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
                       <MapPin size={16} className="text-red-500" />
                       <span className="font-medium">Thailand</span>
@@ -230,63 +283,54 @@ const ServiceDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-8 space-y-4">
+
+                  {/* ✅ Hire/Pay Button */}
+                  <button
+                    onClick={handleHireClick}
+                    className="w-full relative flex items-center justify-center py-4 px-6 text-base font-bold rounded-2xl text-white bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/30 transition-all duration-200"
+                  >
+                    <Briefcase size={20} className="mr-2" />
+                    จ้างงานทันที
+                  </button>
+
                   <button
                     onClick={handleChatClick}
-                    className="w-full group relative flex items-center justify-center py-4 px-6 border border-transparent text-base font-bold rounded-2xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 transition-all duration-200 overflow-hidden"
+                    className="w-full flex items-center justify-center py-4 px-6 border border-slate-200 text-base font-bold rounded-2xl text-slate-700 bg-white hover:bg-slate-50 hover:text-blue-600 transition-all duration-200"
                   >
-                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
-                    <MessageCircle size={20} className="mr-2 group-hover:scale-110 transition-transform" />
+                    <MessageCircle size={20} className="mr-2" />
                     ทักแชทสอบถาม
                   </button>
 
-                  {/* ✅ NEW: Review Button */}
+                  {/* Review Button */}
                   <button
                     onClick={() => setIsReviewModalOpen(true)}
-                    className="w-full group relative flex items-center justify-center py-4 px-6 border-2 border-yellow-400 text-base font-bold rounded-2xl text-yellow-700 bg-yellow-50 hover:bg-yellow-400 hover:text-yellow-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 shadow-lg shadow-yellow-400/20 hover:shadow-yellow-400/40 transition-all duration-200"
+                    className="w-full flex items-center justify-center py-3 px-6 text-sm font-bold rounded-2xl text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all duration-200"
                   >
-                    <Star size={20} className="mr-2 fill-current group-hover:scale-110 transition-transform" />
-                    รีวิวงาน
+                    <Star size={16} className="mr-2 fill-current" />
+                    เขียนรีวิว
                   </button>
 
-                  {/* ✅ NEW: Service Reviews Section */}
+                  {/* Reviews Section */}
                   <div className="pt-6 border-t border-slate-100">
                     <h4 className="font-bold text-slate-900 mb-4 text-sm flex items-center gap-2">
                       <Star size={16} className="text-yellow-500 fill-current" />
                       รีวิวจากลูกค้า
                     </h4>
-
                     {service.reviews && service.reviews.length > 0 ? (
                       <div className="space-y-3 max-h-64 overflow-y-auto">
                         {service.reviews.map((review, idx) => (
                           <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    size={12}
-                                    className={i < review.rating ? "text-yellow-500 fill-current" : "text-slate-300"}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-xs font-bold text-slate-700">{review.rating}/5</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold text-slate-700">★ {review.rating}/5</span>
                             </div>
-                            <p className="text-xs text-slate-600 line-clamp-2">{review.comment}</p>
-                            <p className="text-xs text-slate-400 mt-1">- {review.reviewerName}</p>
+                            <p className="text-xs text-slate-600">{review.comment}</p>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <Star size={32} className="mx-auto text-slate-300 mb-2" />
-                        <p className="text-xs text-slate-400">ยังไม่มีรีวิว</p>
-                      </div>
+                      <p className="text-center text-xs text-slate-400">ยังไม่มีรีวิว</p>
                     )}
-                  </div>
-
-                  <div className="text-center">
-                    <span className="text-xs text-slate-400">รับประกันความปลอดภัยในการชำระเงิน</span>
                   </div>
                 </div>
               </div>
@@ -296,34 +340,16 @@ const ServiceDetailPage = () => {
                 <h4 className="font-bold text-slate-900 mb-6 text-lg">ข้อมูลติดต่อ</h4>
                 <div className="space-y-5">
                   <div className="flex items-center gap-4 group">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
                       <User size={18} />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div>
                       <p className="text-xs text-slate-400 font-medium mb-0.5">อีเมล</p>
                       <p className="text-sm font-medium text-slate-700 truncate" title={service.freelancer?.email}>
                         {service.freelancer?.email}
                       </p>
                     </div>
                   </div>
-                  {service.freelancer?.phone && (
-                    <div className="flex items-center gap-4 group">
-                      <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-600 group-hover:text-white transition-colors duration-300">
-                        <Phone size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-400 font-medium mb-0.5">เบอร์โทรศัพท์</p>
-                        <p className="text-sm font-medium text-slate-700">
-                          {service.freelancer?.phone}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-                  <Link to={`/freelancers/${service.freelancerId}`} className="text-sm text-blue-600 hover:text-blue-700 font-semibold hover:underline transition-colors">
-                    ดูโปรไฟล์ผู้ขายทั้งหมด
-                  </Link>
                 </div>
               </div>
 
@@ -346,6 +372,90 @@ const ServiceDetailPage = () => {
           onSubmit={handleReviewSubmit}
         />
       </Modal>
+
+      {/* ✅ Payment Modal */}
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title="ยืนยันการชำระเงิน"
+      >
+        <div className="p-4 space-y-6">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h4 className="font-bold text-slate-700 mb-1">{service.title}</h4>
+            <p className="text-2xl font-extrabold text-blue-600">฿{service.price.toLocaleString()}</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 mb-3 block uppercase">เลือกช่องทางการชำระเงิน</label>
+            <div className="space-y-3">
+              <button
+                onClick={() => setPaymentMethod('WALLET')}
+                className={`w-full p-4 rounded-xl border flex items-center gap-4 transition-all ${paymentMethod === 'WALLET' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'bg-white border-slate-200 text-slate-600'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'WALLET' ? 'bg-purple-100' : 'bg-slate-100'}`}>
+                  <Wallet size={20} />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm">Wallet Balance</p>
+                  <p className="text-xs opacity-70">หักเงินจากกระเป๋าเงินของคุณ</p>
+                </div>
+                {paymentMethod === 'WALLET' && <CheckCircle2 size={20} className="text-purple-600" />}
+              </button>
+
+              <button
+                onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                className={`w-full p-4 rounded-xl border flex items-center gap-4 transition-all ${paymentMethod === 'BANK_TRANSFER' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-600'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'BANK_TRANSFER' ? 'bg-blue-100' : 'bg-slate-100'}`}>
+                  <Building2 size={20} />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm">Bank Transfer</p>
+                  <p className="text-xs opacity-70">โอนเงินผ่านบัญชีธนาคาร</p>
+                </div>
+                {paymentMethod === 'BANK_TRANSFER' && <CheckCircle2 size={20} className="text-blue-600" />}
+              </button>
+
+              <button
+                onClick={() => setPaymentMethod('CREDIT_CARD')}
+                className={`w-full p-4 rounded-xl border flex items-center gap-4 transition-all ${paymentMethod === 'CREDIT_CARD' ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-slate-200 text-slate-600'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'CREDIT_CARD' ? 'bg-green-100' : 'bg-slate-100'}`}>
+                  <CreditCard size={20} />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm">Credit Card</p>
+                  <p className="text-xs opacity-70">ชำระผ่านบัตรเครดิต</p>
+                </div>
+                {paymentMethod === 'CREDIT_CARD' && <CheckCircle2 size={20} className="text-green-600" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Credit Card Input */}
+          {paymentMethod === 'CREDIT_CARD' && (
+            <div className="animate-in fade-in slide-in-from-top-2">
+              <label className="text-xs font-bold text-slate-500 mb-1 block">หมายเลขบัตร (Test: 4242...)</label>
+              <input
+                type="text"
+                value={creditCardNum}
+                onChange={(e) => setCreditCardNum(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl outline-none"
+                placeholder="0000 0000 0000 0000"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={processPayment}
+            disabled={isPaying}
+            className="w-full py-4 text-white font-bold rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-lg"
+          >
+            {isPaying ? "กำลังดำเนินการ..." : `ยืนยันชำระเงิน ฿${service.price.toLocaleString()}`}
+          </button>
+        </div>
+      </Modal>
+
     </div>
   );
 };
