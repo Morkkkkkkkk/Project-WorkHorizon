@@ -1,91 +1,105 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
+// --- 🛠️ MOCK DATA สำหรับทดสอบ ---
+const MOCK_CARDS = {
+  '4242424242424242': { status: 'SUCCESS', message: 'ชำระเงินสำเร็จ' }, // บัตรผ่าน
+  '4000000000000000': { status: 'FAILED', message: 'บัตรถูกปฏิเสธ (Card Declined)' }, // บัตรเสีย
+  '5555555555555555': { status: 'FAILED', message: 'วงเงินไม่เพียงพอ (Insufficient Funds)' }, // เงินไม่พอ
+};
+
 export const processPayment = async (req, res) => {
-  // รับค่า: คนจ่าย, คนรับ(ถ้ามี), จำนวนเงิน, วิธีจ่าย, รหัสงาน
-  const { payerId, receiverId, amount, method, workId, ...paymentDetails } = req.body;
+  const { payerId, receiverId, amount, method, workId, cardDetails } = req.body;
 
   try {
-
-    // 🔴 [เพิ่มตรงนี้] เช็คก่อนเลยว่ามี payerId ไหม ถ้าไม่มีให้ด่ากลับไป (อย่าเพิ่งเรียก Database)
-    if (!payerId) {
-      console.error("❌ Error: payerId is missing!", req.body); // Log ดูว่าส่งอะไรมาบ้าง
-      return res.status(400).json({ 
-        success: false, 
-        message: "เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้งาน (กรุณาล็อกอินใหม่)" 
-      });
-    }
-
-    if (!amount) {
-      return res.status(400).json({ success: false, message: "ระบุจำนวนเงินไม่ถูกต้อง" });
-    }
+    if (!payerId) return res.status(401).json({ success: false, message: "Unauthorized" });
     
-    // 1. หาคนจ่ายเงิน
+    // 1. หา User
     const payer = await prisma.user.findUnique({ where: { id: payerId } });
-    if (!payer) return res.status(404).json({ message: "ไม่พบผู้จ่ายเงิน" });
+    if (!payer) return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้" });
+
+    // 2. หน่วงเวลาจำลองการประมวลผล (Simulate Network Delay)
+    // สุ่มรอ 1.5 - 3 วินาที ให้เหมือนระบบกำลังหมุนติ้วๆ
+    const delay = Math.floor(Math.random() * 1500) + 1500; 
+    await new Promise(resolve => setTimeout(resolve, delay));
 
     let status = "FAILED";
-    let message = "ทำรายการไม่สำเร็จ";
+    let message = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
+    let gatewayRef = `ch_${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // จำลอง Transaction ID แบบ Stripe (ch_xxxx)
 
-    // ==========================================
-    // 🟠 ZONE 1: ตรวจสอบการจ่ายเงิน (Simulation)
-    // ==========================================
-    
-    // CASE A: จ่ายผ่าน Wallet (ต้องเช็คเงินในกระเป๋า)
-    if (method === 'WALLET') {
+    // =========================================================
+    // 💳 SCENARIO 1: จ่ายด้วยบัตรเครดิต (Credit Card)
+    // =========================================================
+    if (method === 'CREDIT_CARD') {
+      const cardNumber = cardDetails?.number?.replace(/\s/g, '') || '';
+      
+      // เช็ค Mock Logic
+      if (MOCK_CARDS[cardNumber]) {
+        status = MOCK_CARDS[cardNumber].status;
+        message = MOCK_CARDS[cardNumber].message;
+      } else {
+        // กรณีเลขบัตรมั่วๆ ให้ผ่านแบบ Random (หรือจะให้ผ่านหมดก็ได้ถ้าอยากง่าย)
+        // สมมติ: ถ้าเลขลงท้ายเลขคู่ = ผ่าน, เลขคี่ = ไม่ผ่าน
+        const lastDigit = parseInt(cardNumber.slice(-1));
+        if (!isNaN(lastDigit) && lastDigit % 2 === 0) {
+            status = 'SUCCESS';
+            message = 'ชำระเงินสำเร็จ (Random Approved)';
+        } else {
+            status = 'FAILED';
+            message = 'บัตรไม่ถูกต้อง หรือข้อมูลผิดพลาด';
+        }
+      }
+    }
+
+    // =========================================================
+    // 🏦 SCENARIO 2: โอนเงิน (Bank Transfer / QR PromtPay)
+    // =========================================================
+    else if (method === 'BANK_TRANSFER') {
+      // สมมติว่า Frontend ส่งหลักฐาน หรือกดยืนยันแล้ว
+      status = 'SUCCESS';
+      message = 'แจ้งโอนเงินเรียบร้อย';
+      gatewayRef = `th_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    }
+
+    // =========================================================
+    // 👛 SCENARIO 3: ตัด Wallet (Internal)
+    // =========================================================
+    else if (method === 'WALLET') {
       if (parseFloat(payer.walletBalance) >= parseFloat(amount)) {
-        status = "SUCCESS"; 
-        // ตัดเงินคนจ่ายทันที
+        status = 'SUCCESS';
+        message = 'ตัดเงินจากกระเป๋าสำเร็จ';
+        
+        // ตัดเงินทันที
         await prisma.user.update({
           where: { id: payerId },
           data: { walletBalance: { decrement: parseFloat(amount) } }
         });
       } else {
-        message = "ยอดเงินใน Wallet ไม่พอ";
+        message = 'ยอดเงินในกระเป๋าไม่เพียงพอ';
       }
-    } 
-    
-    // CASE B: จ่ายผ่าน Bank (หน่วงเวลา + ให้ผ่านหมด)
-    else if (method === 'BANK_TRANSFER') {
-      await new Promise(r => setTimeout(r, 2000)); // รอ 2 วิ
-      status = "SUCCESS";
     }
 
-    // CASE C: จ่ายผ่านบัตร (เช็ค Magic Number)
-    else if (method === 'CREDIT_CARD') {
-       if (paymentDetails.cardNumber && paymentDetails.cardNumber.includes("4242")) {
-           status = "SUCCESS";
-       } else {
-           message = "บัตรถูกปฏิเสธ (ลองใช้เลข 4242...)";
-       }
-    }
-
-    // ==========================================
-    // 🟢 ZONE 2: ถ้าจ่ายสำเร็จ -> โอนเงินให้คนรับ
-    // ==========================================
-    if (status === "SUCCESS") {
-      message = "ชำระเงินเรียบร้อย";
-
-      // ถ้ามีคนรับเงิน (เช่น จ้าง Freelancer) -> เพิ่มเงินให้เขา
+    // --- ✅ ถ้าสำเร็จ: ดำเนินการต่อ ---
+    if (status === 'SUCCESS') {
+      
+      // 1. เพิ่มเงินให้คนรับ (ถ้ามี)
       if (receiverId) {
-         await prisma.user.update({
-            where: { id: receiverId },
-            data: { walletBalance: { increment: parseFloat(amount) } }
-         });
+        await prisma.user.update({
+          where: { id: receiverId },
+          data: { walletBalance: { increment: parseFloat(amount) } }
+        });
       }
 
-      // ถ้าเป็นการจ่ายค่างาน -> อัปเดตสถานะงาน
+      // 2. อัปเดตสถานะงาน (ถ้ามี)
       if (workId) {
-          await prisma.freelancerWork.update({
-              where: { id: workId },
-              data: { status: "IN_PROGRESS" }
-          });
+        await prisma.freelancerWork.update({
+          where: { id: workId },
+          data: { status: "IN_PROGRESS" } // หรือสถานะอื่นตาม Flow
+        });
       }
     }
 
-    // ==========================================
-    // 🔵 ZONE 3: บันทึกประวัติ (Transaction)
-    // ==========================================
+    // --- 📝 บันทึก Transaction ลง DB ---
     const transaction = await prisma.transaction.create({
       data: {
         amount: parseFloat(amount),
@@ -94,17 +108,22 @@ export const processPayment = async (req, res) => {
         payerId: payerId,
         receiverId: receiverId || null,
         workId: workId || null,
-        gatewayRef: `TXN-${Date.now()}`
+        gatewayRef: gatewayRef
       }
     });
 
-    return res.json({ success: status === "SUCCESS", message, transaction });
+    return res.json({ 
+        success: status === 'SUCCESS', 
+        message, 
+        transaction,
+        details: { gatewayRef, method } // ส่งกลับไปโชว์สวยๆ
+    });
 
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Server Error" });
+    console.error("Payment Error:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
-}
+};
 
 // ✅ ฟังก์ชันถอนเงิน
 export const withdraw = async (req, res) => {

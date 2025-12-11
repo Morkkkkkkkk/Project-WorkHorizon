@@ -23,10 +23,10 @@ const Footer = () => {
                             เชื่อมต่อโอกาสทางอาชีพที่ใช่สำหรับคุณ
                         </p>
                         <div className="flex gap-4">
-                            <SocialLink href="#" icon={<Facebook size={18} />} label="Facebook" />
-                            <SocialLink href="#" icon={<Twitter size={18} />} label="Twitter" />
-                            <SocialLink href="#" icon={<Instagram size={18} />} label="Instagram" />
-                            <SocialLink href="#" icon={<Linkedin size={18} />} label="LinkedIn" />
+                            <SocialLink href="https://www.facebook.com/" icon={<Facebook size={18} />} label="Facebook" />
+                            <SocialLink href="https://twitter.com/" icon={<Twitter size={18} />} label="Twitter" />
+                            <SocialLink href="https://www.instagram.com/" icon={<Instagram size={18} />} label="Instagram" />
+                            <SocialLink href="https://www.linkedin.com/" icon={<Linkedin size={18} />} label="LinkedIn" />
                         </div>
                     </div>
 
@@ -59,15 +59,15 @@ const Footer = () => {
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3 text-slate-500 text-sm">
                                 <MapPin size={18} className="text-orange-600 shrink-0 mt-0.5" />
-                                <span>123 อาคารสาทรซิตี้ทาวเวอร์ ชั้น 15 <br />ถนนสาทรใต้ แขวงทุ่งมหาเมฆ <br />เขตสาทร กรุงเทพฯ 10120</span>
+                                <span> หมู่ 4  <br />ถนนอุดร-สกล ตำบลลหนองบัว <br />อำเภอเมือง อุดรธานี 41000</span>
                             </li>
                             <li className="flex items-center gap-3 text-slate-500 text-sm">
                                 <Phone size={18} className="text-orange-600 shrink-0" />
-                                <span>02-123-4567</span>
+                                <span>065-028-8005</span>
                             </li>
                             <li className="flex items-center gap-3 text-slate-500 text-sm">
                                 <Mail size={18} className="text-orange-600 shrink-0" />
-                                <span>contact@workhorizon.com</span>
+                                <span>67319010016@udontech.ac.th</span>
                             </li>
                         </ul>
                     </div>

@@ -455,9 +455,10 @@ const Header = () => {
                             <Link to="/company/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-orange-600 rounded-xl transition-all">
                               <Building2 size={18} /> โปรไฟล์บริษัท
                             </Link>
-                            <Link to="/company/create-job" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-orange-600 rounded-xl transition-all">
+                        {/* <Link to="/company/create-job" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-orange-600 rounded-xl transition-all">
                               <Plus size={18} /> ลงประกาศงาน
-                            </Link>
+                            </Link> */}
+
                           </>
                         )}
 

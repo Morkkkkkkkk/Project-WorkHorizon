@@ -8,7 +8,7 @@ import Modal from '../components/Modal.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
 import CreateWorkForm from '../components/CreateWorkForm.jsx';
 import ChatList from '../components/ChatList.jsx'; // ✅ Import ChatList
-import { Star, Briefcase, Plus, Menu, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Star, Briefcase, Plus, Menu, ArrowLeft, MessageSquare,ExternalLink } from 'lucide-react';
 import { freelancerApi } from '../api/freelancerApi';
 import { toast } from 'react-toastify';
 
@@ -66,6 +66,50 @@ const ChatPage = () => {
 
   // Helper to determine if we should show the chat window or the list (on mobile)
   const showChat = !!convoId;
+
+  // ✅ 1. เพิ่ม Helper Function สำหรับตรวจสอบและแสดงผลข้อความ
+  const renderMessageContent = (msg) => {
+    // คำสำคัญที่ใช้ตรวจสอบว่าเป็นข้อความระบบ (อ้างอิงจาก freelancer.controller.js)
+    const systemPatterns = [
+      { prefix: '📄', type: 'OFFER', label: 'ดูใบเสนอราคา' },
+      { prefix: '✅', type: 'STATUS', label: 'ดูสถานะงาน' },
+      { prefix: '📦', type: 'STATUS', label: 'ตรวจสอบงานที่ส่ง' },
+      { prefix: '📝', type: 'STATUS', label: 'ดูคำขอแก้ไข' },
+      { prefix: '🎉', type: 'STATUS', label: 'ดูงานที่เสร็จสิ้น' },
+      { prefix: '⚠️', type: 'STATUS', label: 'ดูข้อพิพาท' }
+    ];
+
+    // ตรวจสอบว่าข้อความขึ้นต้นด้วยสัญลักษณ์ระบบหรือไม่
+    const matchedPattern = systemPatterns.find(p => msg.content.startsWith(p.prefix));
+
+    if (matchedPattern) {
+      // กำหนดลิงก์ปลายทางตามบทบาท (User Role)
+      // - JOB_SEEKER -> ไปหน้า "งานที่ฉันจ้าง" (/my-hires)
+      // - FREELANCER -> ไปหน้า "งานที่รับทำ" (/freelancer/works)
+      const targetLink = user.role === 'JOB_SEEKER' ? '/my-hires' : '/freelancer/works';
+
+      return (
+        <div className="flex flex-col gap-2">
+          {/* ส่วนเนื้อหาข้อความ */}
+          <p className="whitespace-pre-wrap break-words leading-relaxed font-medium">
+            {msg.content}
+          </p>
+          
+          {/* ส่วนปุ่มกด (Action Button) */}
+          <Link 
+            to={targetLink}
+            className="mt-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-inherit border border-current/20 py-2 px-3 rounded-lg text-xs font-bold transition-all"
+          >
+            <ExternalLink size={14} />
+            {matchedPattern.label}
+          </Link>
+        </div>
+      );
+    }
+
+    // ถ้าไม่ใช่ข้อความระบบ ให้แสดงผลแบบเดิม
+    return <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>;
+  };
 
   // --- Render Content Logic ---
   const renderChatContent = () => {
@@ -174,12 +218,27 @@ const ChatPage = () => {
         <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
           {messages.map(msg => {
             const isMe = msg.senderId === user.id;
+            // ตรวจสอบว่าเป็นข้อความระบบหรือไม่ (เพื่อปรับสไตล์กล่องข้อความ)
+            const isSystemMsg = ['📄', '✅', '📦', '📝', '🎉', '⚠️'].some(prefix => msg.content.startsWith(prefix));
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl shadow-sm text-sm ${isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'
-                  }`}>
-                  <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
-                  <span className={`text-[10px] block mt-1 text-right ${isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                <div 
+                  className={`
+                    max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl shadow-sm text-sm
+                    ${isMe 
+                      ? (isSystemMsg 
+                          ? 'bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-br-none shadow-md' // สไตล์พิเศษสำหรับ System Msg ฝั่งเรา
+                          : 'bg-blue-600 text-white rounded-br-none') 
+                      : (isSystemMsg
+                          ? 'bg-white border-l-4 border-orange-500 text-slate-800 shadow-md rounded-bl-none' // สไตล์พิเศษสำหรับ System Msg ฝั่งเขา
+                          : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none')
+                    }
+                  `}
+                >
+                  {/* ✅ เรียกใช้ฟังก์ชันที่สร้างใหม่ตรงนี้ */}
+                  {renderMessageContent(msg)}
+                  
+                  <span className={`text-[10px] block mt-1 text-right ${isMe ? 'text-blue-100 opacity-80' : 'text-slate-400'}`}>
                     {formatTime(msg.createdAt)}
                   </span>
                 </div>

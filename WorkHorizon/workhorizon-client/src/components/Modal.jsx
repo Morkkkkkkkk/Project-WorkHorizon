@@ -39,7 +39,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   return (
     // (ใช้ Portal จะดีที่สุด แต่ใช้ Fragment ก็ได้)
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4"
+      className="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-50 z-50 flex justify-center items-center p-4"
       // 3.1 คลิกที่พื้นหลังสีดำ (Overlay) เพื่อปิด
       onMouseDown={onClose} 
     >
