@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // 1. (เพิ่ม) กำหนด URL ของ Backend
-export const BACKEND_URL = 'http://localhost:5000';
+export const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 //export const BACKEND_URL = 'http://49.49.36.238:5000';
 
 // 2. (อัปเดต) สร้าง Axios instance

@@ -12,6 +12,7 @@ export const register = async (req, res) => {
     // --- (จบ DEBUG 1) ---
 
     // --- (ควรเพิ่ม Validation Zod/Joi ตรงนี้) ---
+    // --- Validation ---
     if (!email || !password || !firstName || !lastName || !role) {
       return res
         .status(400)
@@ -27,8 +28,13 @@ export const register = async (req, res) => {
     // 2. เข้ารหัสผ่าน
     const hashedPassword = await hashPassword(password);
 
-    // 3. สร้างผู้ใช้
-    const user = await prisma.user.create({
+    // 3. เริ่ม Transaction
+    // ผลลัพธ์ที่ return จากในนี้จะถูกเก็บในตัวแปร newUser
+    const newUser = await prisma.$transaction(async (tx) => {
+
+    
+    // 3.1 สร้างผู้ใช้
+    const user = await tx.user.create({
       data: {
         email,
         password: hashedPassword,
@@ -39,14 +45,14 @@ export const register = async (req, res) => {
       },
     });
 
-    // 4. ถ้าเป็น Employer ให้สร้างโปรไฟล์บริษัทพื้นฐานให้ทันที
+    // 3.2 ถ้าเป็น Employer ให้สร้างโปรไฟล์บริษัทพื้นฐานให้ทันที
     if (role === "EMPLOYER") {
       // --- (DEBUG 2) ---
       // console.log(
       //    `[Register] Role เป็น EMPLOYER, กำลังสร้าง Company สำหรับ User ID: ${user.id}`
       //  );
       // --- (จบ DEBUG 2) ---
-      await prisma.company.create({
+      await tx.company.create({
         data: {
           userId: user.id, // (เชื่อมโยงกับ User)
           companyName: `${firstName}`, // (ชื่อเริ่มต้น)
@@ -56,9 +62,9 @@ export const register = async (req, res) => {
       });
     }
 
-    // กรณีเป็น Freelancer (เพิ่มใหม่)
+    // 3.3 กรณีเป็น Freelancer (เพิ่มใหม่)
     if (role === "FREELANCER") {
-      await prisma.freelancerProfile.create({
+      await tx.freelancerProfile.create({
         data: {
           userId: user.id,
           professionalTitle: "Freelancer", // ค่าเริ่มต้น
@@ -66,14 +72,20 @@ export const register = async (req, res) => {
         },
       });
     }
+    return user; // ส่ง user ที่สร้างเสร็จแล้วออกมาจาก Transaction
+    });
 
-    // 5. ไม่ส่งรหัสผ่านกลับไป
+    // 4. ไม่ส่งรหัสผ่านกลับไป
     user.password = undefined;
-    res.status(201).json({ message: "User registered successfully", user });
+
+    // ส่ง Response เมื่อทุกอย่างสำเร็จ
+    res.status(201).json({ message: "User registered successfully", user: newUser });
+
   } catch (error) {
     // --- (DEBUG 3) ---
     //console.error("[Register] เกิด Error 500:", error.message);
     // --- (จบ DEBUG 3) ---
+    console.error("[Register Error]", error);
     res
       .status(500)
       .json({ error: "Registration failed", details: error.message });

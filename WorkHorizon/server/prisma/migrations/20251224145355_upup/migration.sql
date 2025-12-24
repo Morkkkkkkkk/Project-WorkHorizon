@@ -192,8 +192,8 @@ CREATE TABLE `SubCategory` (
     `updatedAt` DATETIME(3) NOT NULL,
     `mainCategoryId` VARCHAR(191) NOT NULL,
 
-    UNIQUE INDEX `SubCategory_name_key`(`name`),
     INDEX `SubCategory_mainCategoryId_idx`(`mainCategoryId`),
+    UNIQUE INDEX `SubCategory_name_mainCategoryId_key`(`name`, `mainCategoryId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
