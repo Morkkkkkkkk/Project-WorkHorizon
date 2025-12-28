@@ -8,13 +8,15 @@ import {
   updateJobStatus,
   uploadJobImages,  
   deleteJobImage,
+  uploadJobDocuments, 
+  deleteJobDocument
 } from '../controllers/job.controller.js';
 import { getApplicationsForJob } from '../controllers/application.controller.js'; // (Logic อยู่ที่ app.controller)
 import {
   authenticateToken,
   isEmployer,
 } from '../middlewares/auth.middleware.js';
-import { diskUpload } from '../services/diskStorage.service.js';
+import { diskUpload,documentUpload } from '../services/diskStorage.service.js';
 
 const router = Router();
 
@@ -57,6 +59,21 @@ router.delete(
   '/images/:imageId',
   isEmployer,
   deleteJobImage
+);
+
+// POST อัปโหลดเอกสาร PDF (เฉพาะ Employer)
+router.post(
+  '/:jobId/documents',
+  isEmployer,        // ต้องเป็นบริษัท
+  documentUpload.array('jobDocuments', 5), // รับได้สูงสุด 5 ไฟล์, key ชื่อ 'jobDocuments'
+  uploadJobDocuments
+);
+
+// DELETE ลบเอกสาร
+router.delete(
+  '/documents/:docId',
+  isEmployer,
+  deleteJobDocument
 );
 
 export default router;

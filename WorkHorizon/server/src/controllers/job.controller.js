@@ -129,7 +129,8 @@ export const getJobById = async (req, res) => {
       province: true,
       district: true,
       requiredSkills: true,
-      images: { orderBy: { createdAt: 'asc' } }
+      images: { orderBy: { createdAt: 'asc' } },
+      documents: true
     };
 
     const job = await prisma.job.findFirst({
@@ -157,6 +158,65 @@ export const getJobById = async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to fetch job", details: error.message });
+  }
+};
+
+// 2. เพิ่มฟังก์ชัน uploadJobDocuments (เลียนแบบ uploadJobImages)
+export const uploadJobDocuments = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+
+    // เช็กความเป็นเจ้าของงาน
+    const isOwner = await checkJobOwnership(jobId, req.user.id);
+    if (!isOwner) return res.status(403).json({ error: "User unauthorized" });
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No PDF files uploaded." });
+    }
+
+    const docPromises = req.files.map(file => {
+      const fileUrl = getWebPath(file.path); // ใช้ Helper เดิมแปลง path
+      return prisma.jobDocument.create({
+        data: {
+          name: file.originalname, // เก็บชื่อไฟล์เดิมไว้โชว์
+          url: fileUrl,
+          jobId: jobId,
+        },
+      });
+    });
+
+    const newDocs = await Promise.all(docPromises);
+    res.status(201).json(newDocs);
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 3. เพิ่มฟังก์ชันลบเอกสาร
+export const deleteJobDocument = async (req, res, next) => {
+  try {
+    const { docId } = req.params;
+    
+    // ค้นหาเอกสารและเช็กสิทธิ์
+    const doc = await prisma.jobDocument.findFirst({
+      where: {
+        id: docId,
+        job: { company: { userId: req.user.id } }
+      }
+    });
+
+    if (!doc) return res.status(404).json({ error: "Document not found or unauthorized" });
+
+    // ลบไฟล์จาก Disk
+    await deleteFileFromDisk(doc.url);
+
+    // ลบจาก DB
+    await prisma.jobDocument.delete({ where: { id: docId } });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
   }
 };
 

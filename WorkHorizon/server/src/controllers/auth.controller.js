@@ -28,13 +28,9 @@ export const register = async (req, res) => {
     // 2. เข้ารหัสผ่าน
     const hashedPassword = await hashPassword(password);
 
-    // 3. เริ่ม Transaction
-    // ผลลัพธ์ที่ return จากในนี้จะถูกเก็บในตัวแปร newUser
-    const newUser = await prisma.$transaction(async (tx) => {
-
     
     // 3.1 สร้างผู้ใช้
-    const user = await tx.user.create({
+    const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
@@ -52,7 +48,7 @@ export const register = async (req, res) => {
       //    `[Register] Role เป็น EMPLOYER, กำลังสร้าง Company สำหรับ User ID: ${user.id}`
       //  );
       // --- (จบ DEBUG 2) ---
-      await tx.company.create({
+      await prisma.company.create({
         data: {
           userId: user.id, // (เชื่อมโยงกับ User)
           companyName: `${firstName}`, // (ชื่อเริ่มต้น)
@@ -64,7 +60,7 @@ export const register = async (req, res) => {
 
     // 3.3 กรณีเป็น Freelancer (เพิ่มใหม่)
     if (role === "FREELANCER") {
-      await tx.freelancerProfile.create({
+      await prisma.freelancerProfile.create({
         data: {
           userId: user.id,
           professionalTitle: "Freelancer", // ค่าเริ่มต้น
@@ -72,14 +68,12 @@ export const register = async (req, res) => {
         },
       });
     }
-    return user; // ส่ง user ที่สร้างเสร็จแล้วออกมาจาก Transaction
-    });
 
     // 4. ไม่ส่งรหัสผ่านกลับไป
     user.password = undefined;
 
     // ส่ง Response เมื่อทุกอย่างสำเร็จ
-    res.status(201).json({ message: "User registered successfully", user: newUser });
+    res.status(201).json({ message: "User registered successfully", user });
 
   } catch (error) {
     // --- (DEBUG 3) ---

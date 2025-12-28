@@ -39,7 +39,6 @@ const getJobDetail = (jobId) => {
  */
 const getMyJobs = () => {
   return apiClient.get('/companies/me/jobs').then(handleResponse);
-  
 };
 
 
@@ -98,6 +97,29 @@ const deleteJobImage = (imageId) => {
   return apiClient.delete(`/jobs/images/${imageId}`);
 };
 
+// ✅ (เพิ่มใหม่) อัปโหลดเอกสารแนบ (PDF)
+/**
+ * (Employer) อัปโหลดเอกสารสำหรับงาน
+ * @param {string} jobId
+ * @param {FormData} formData (มี field 'jobDocuments')
+ */
+const uploadJobDocuments = (jobId, formData) => {
+  return apiClient.post(`/jobs/${jobId}/documents`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+// ✅ (เพิ่มใหม่) ลบเอกสารแนบ
+/**
+ * (Employer) ลบเอกสารแนบของงาน
+ * @param {string} docId
+ */
+const deleteJobDocument = (docId) => {
+  return apiClient.delete(`/jobs/documents/${docId}`);
+};
+
 // ส่งออกเป็น Object
 export const jobApi = {
   searchJobs,
@@ -109,5 +131,7 @@ export const jobApi = {
   updateJobStatus,
   uploadJobImages, 
   deleteJobImage,
+  // ✅ อย่าลืมส่งออก 2 ฟังก์ชันใหม่นี้
+  uploadJobDocuments,
+  deleteJobDocument
 };
-

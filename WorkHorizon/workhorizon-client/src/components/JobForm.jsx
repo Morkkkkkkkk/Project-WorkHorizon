@@ -6,7 +6,7 @@ import SearchableMultiCombobox from './SearchableMultiCombobox.jsx';
 import LoadingSpinner from './LoadingSpinner.jsx';
 import { jobApi } from '../api/jobApi.js';
 import { BACKEND_URL } from '../api/apiClient.js';
-import { UploadCloud, Trash2, ImageIcon } from 'lucide-react';
+import { UploadCloud, Trash2, ImageIcon, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 /**
@@ -42,6 +42,7 @@ const JobForm = ({ initialData, onSubmit, onClose, isSubmitting }) => {
   });
 
   const [selectedFiles, setSelectedFiles] = useState([]); // ✅ New state for files
+  const [selectedDocs, setSelectedDocs] = useState([]); // ✅ New state for documents
   const [error, setError] = useState(null);
 
   // 1. (เรียกใช้ Hook หมวดหมู่)
@@ -107,6 +108,18 @@ const JobForm = ({ initialData, onSubmit, onClose, isSubmitting }) => {
     }
   };
 
+  // ✅ 2. เพิ่ม Handler สำหรับเลือกไฟล์ PDF
+  const handleDocChange = (e) => {
+    if (e.target.files) {
+      // กรองเฉพาะ PDF เพื่อความชัวร์ (แม้ input จะมี accept แล้ว)
+      const files = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
+      if (files.length !== Array.from(e.target.files).length) {
+        toast.warning("บางไฟล์ไม่ใช่ PDF และถูกข้ามไป");
+      }
+      setSelectedDocs(files);
+    }
+  };
+
   // 4. (Submit)
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -144,9 +157,13 @@ const JobForm = ({ initialData, onSubmit, onClose, isSubmitting }) => {
       skills: formData.skills,
     };
 
-    // (ส่งกลับไปที่ Page (DashboardPage หรือ AdminJobManagementPage))
-    // ✅ Pass selectedFiles as the second argument if creating a new job
-    onSubmit(payload, initialData?.id || selectedFiles);
+    // ส่งทั้ง images (selectedFiles) และ documents (selectedDocs) ไปให้ Parent จัดการ
+    if (isEditMode) {
+        onSubmit(payload, initialData.id);
+    } else {
+        // กรณีสร้างใหม่ ส่งไปเป็น Object รวม
+        onSubmit(payload, { images: selectedFiles, documents: selectedDocs });
+    }
   };
 
 
@@ -426,6 +443,44 @@ const JobForm = ({ initialData, onSubmit, onClose, isSubmitting }) => {
         )}
       </div>
 
+      {/* ──────────────── Document Upload Section (เพิ่มใหม่) ──────────────── */}
+      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mt-4">
+        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <FileText className="text-blue-500" /> เอกสารแนบ (PDF)
+        </h3>
+
+        {isEditMode ? (
+          /* โหมดแก้ไข: ใช้ Component แยก (จะสร้างในขั้นตอนถัดไป) */
+          <JobDocumentUploader
+            jobId={initialData.id}
+            initialDocs={initialData.documents || []}
+          />
+        ) : (
+          /* โหมดสร้างใหม่: Input ธรรมดา */
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              เลือกไฟล์เอกสาร (PDF เท่านั้น)
+            </label>
+            <input
+              type="file"
+              multiple
+              accept="application/pdf"
+              onChange={handleDocChange}
+              className="block w-full text-sm text-slate-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100
+              "
+            />
+            <p className="text-xs text-slate-500 mt-2">
+              * ใช้สำหรับแบบฟอร์มใบสมัคร หรือรายละเอียดเพิ่มเติม
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* ปุ่ม Submit */}
       <div className="flex justify-end pt-4 space-x-2 border-t">
         <button
@@ -523,6 +578,107 @@ const JobImageUploader = ({ jobId, initialImages }) => {
             type="file"
             multiple
             accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={isUploading}
+          />
+        </label>
+      </div>
+    </div>
+  );
+};
+
+const JobDocumentUploader = ({ jobId, initialDocs }) => {
+  const [docs, setDocs] = useState(initialDocs);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Helper สำหรับ URL
+  const getFileUrl = (relativeUrl) => {
+    if (!relativeUrl || relativeUrl.startsWith('http')) return relativeUrl;
+    return `${BACKEND_URL}${relativeUrl}`;
+  };
+
+  const handleFileChange = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const formData = new FormData();
+    // ✅ key ต้องตรงกับ backend ('jobDocuments')
+    for (let i = 0; i < files.length; i++) {
+      formData.append('jobDocuments', files[i]);
+    }
+
+    setIsUploading(true);
+    try {
+      // ⚠️ คุณต้องเพิ่ม method uploadJobDocuments ใน jobApi.js ด้วย
+      const { data: newDocs } = await jobApi.uploadJobDocuments(jobId, formData);
+      setDocs(prev => [...prev, ...newDocs]);
+      toast.success("อัปโหลดเอกสารสำเร็จ");
+    } catch (err) {
+      console.error(err);
+      toast.error("อัปโหลดไม่สำเร็จ: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDelete = async (docId) => {
+    if (!window.confirm("ยืนยันการลบเอกสารนี้?")) return;
+    try {
+      // ⚠️ คุณต้องเพิ่ม method deleteJobDocument ใน jobApi.js ด้วย
+      await jobApi.deleteJobDocument(docId);
+      setDocs(prev => prev.filter(d => d.id !== docId));
+      toast.success("ลบเอกสารเรียบร้อยแล้ว");
+    } catch (err) {
+      toast.error("ลบไม่สำเร็จ");
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-4 border-t">
+      <label className="label-text">รายการเอกสารแนบ</label>
+
+      {/* List เอกสาร */}
+      <div className="space-y-2">
+        {docs.map(doc => (
+          <div key={doc.id} className="flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 bg-red-50 rounded-lg">
+                <FileText className="text-red-500" size={20} />
+              </div>
+              <a 
+                href={getFileUrl(doc.url)} 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-sm text-blue-600 hover:underline truncate"
+              >
+                {doc.name}
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDelete(doc.id)}
+              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+        
+        {docs.length === 0 && (
+            <p className="text-sm text-slate-400 italic">ยังไม่มีเอกสารแนบ</p>
+        )}
+      </div>
+
+      {/* ปุ่มอัปโหลด */}
+      <div>
+        <label className="btn-secondary-outline w-full cursor-pointer border-dashed">
+          <UploadCloud size={16} className="mr-2" />
+          {isUploading ? "กำลังอัปโหลด..." : "เพิ่มเอกสาร PDF"}
+          <input
+            type="file"
+            multiple
+            accept="application/pdf"
             className="hidden"
             onChange={handleFileChange}
             disabled={isUploading}

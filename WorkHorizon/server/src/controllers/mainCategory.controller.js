@@ -38,7 +38,6 @@ export const createMainCategory = async (req, res, next) => {
     });
     res.status(201).json(mainCategory);
   } catch (error) {
-    
     next(error);
   }
 };

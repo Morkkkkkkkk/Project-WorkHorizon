@@ -206,8 +206,20 @@ model Job {
 
   images JobImage[]
 
+  documents JobDocument[]
+
   @@index([subCategoryId])
   @@index([mainCategoryId])
+}
+
+model JobDocument {
+  id        String   @id @default(cuid())
+  name      String   // ชื่อไฟล์ต้นฉบับ (เช่น application_form.pdf)
+  url       String   // Path ที่เก็บไฟล์
+  createdAt DateTime @default(now())
+
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId     String
 }
 
 model JobImage {
