@@ -1,12 +1,12 @@
-/* 1. Import Google Font */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap");
+/* 1. Import Google Font (เอาเฉพาะ Prompt กับ Sarabun ก็พอครับ Inter/Noto ลบออกได้เลยจะได้ไม่หนักเว็บ) */
+@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 2. (ใหม่) กำหนด CSS Variables (Theme) */
+/* 2. กำหนด CSS Variables (Theme) */
 @layer base {
   :root {
     --color-blue-50: #eff6ff;
@@ -26,22 +26,21 @@
     --color-slate-900: #0f172a;
 
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1),
-      0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1),
-      0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   }
-}
 
-/* 3. (ใหม่) กำหนดค่าเริ่มต้น (Base) */
-@layer base {
+  /* 3. กำหนดค่าเริ่มต้น (Base) - แก้ให้ใช้ Prompt เป็นหลัก */
   html {
     @apply h-full;
-    font-family: "Noto Sans Thai", "Inter", sans-serif;
+    font-family: 'Prompt', sans-serif; /* ✅ แก้ตรงนี้ให้เป็น Prompt */
   }
+
   body {
     @apply h-full bg-slate-50 text-slate-800 antialiased;
-    font-family: "Noto Sans Thai", "Inter", sans-serif;
+    font-family: 'Prompt', sans-serif; /* ✅ แก้ตรงนี้ให้เป็น Prompt */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* (ปรับแต่ง Scrollbar) */
@@ -57,7 +56,7 @@
   }
 }
 
-/* 4. (ใหม่) สร้าง Components สำเร็จรูป (Style Modern) */
+/* 4. Components สำเร็จรูป */
 @layer components {
   /* --- ปุ่ม (Buttons) --- */
   .btn-primary {
@@ -117,11 +116,11 @@
   }
   .form-file-input {
     @apply block w-full text-sm text-slate-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-blue-50 file:text-blue-700
-            hover:file:bg-blue-100 cursor-pointer;
+           file:mr-4 file:py-2 file:px-4
+           file:rounded-full file:border-0
+           file:text-sm file:font-semibold
+           file:bg-blue-50 file:text-blue-700
+           hover:file:bg-blue-100 cursor-pointer;
   }
   .label-text {
     @apply block text-sm font-medium text-slate-700;
@@ -161,7 +160,7 @@
   }
 }
 
-/* 5. (ใหม่) Animation (สำหรับ Modal) */
+/* 5. Animation */
 @keyframes fadeInUp-fast {
   from {
     opacity: 0;
@@ -176,30 +175,28 @@
   animation: fadeInUp-fast 0.2s ease-out;
 }
 
-/* --- (เพิ่ม) 5. (ใหม่) Style สำหรับ Swiper.js --- */
-  /* (ปุ่ม Next/Prev - ปรับให้สวยหรู) */
-  .swiper-button-next,
-  .swiper-button-prev {
-    @apply bg-white/10 backdrop-blur-md text-white rounded-full w-10 h-10 border border-white/20 shadow-lg;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .swiper-button-next:hover,
-  .swiper-button-prev:hover {
-    @apply bg-orange-500 border-orange-400 scale-110 shadow-orange-500/50;
-  }
+/* 6. Swiper.js Style */
+.swiper-button-next,
+.swiper-button-prev {
+  @apply bg-white/10 backdrop-blur-md text-white rounded-full w-10 h-10 border border-white/20 shadow-lg !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-  .swiper-button-next::after,
-  .swiper-button-prev::after {
-    @apply text-lg font-bold;
-  }
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  @apply bg-orange-500 border-orange-400 scale-110 shadow-orange-500/50 !important;
+}
 
-  /* (Pagination Dots - ปรับให้ดูดี) */
-  .swiper-pagination-bullet {
-    @apply w-3 h-3 bg-white/40 transition-all duration-300 backdrop-blur-sm;
-    opacity: 1 !important;
-  }
-  
-  .swiper-pagination-bullet-active {
-    @apply w-8 bg-orange-500 rounded-full shadow-lg shadow-orange-500/40;
-  }
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  @apply text-lg font-bold !important;
+}
+
+.swiper-pagination-bullet {
+  @apply w-3 h-3 bg-white/40 transition-all duration-300 backdrop-blur-sm !important;
+  opacity: 1 !important;
+}
+
+.swiper-pagination-bullet-active {
+  @apply w-8 bg-orange-500 rounded-full shadow-lg shadow-orange-500/40 !important;
+}

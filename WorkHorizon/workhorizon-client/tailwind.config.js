@@ -16,8 +16,9 @@ export default {
 
       // (Font ที่เราเคยตั้งค่าไว้)
       fontFamily: {
-        heading: ["Inter", "Noto Sans Thai", "sans-serif"],
-        body: ["Noto Sans Thai", "Inter", "sans-serif"],
+        heading: ["Prompt", "sans-serif"],
+        body: ["Prompt", "sans-serif"],
+        sans: ["Prompt", "sans-serif"],
       },
     },
   },
