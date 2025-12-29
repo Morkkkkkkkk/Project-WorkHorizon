@@ -51,6 +51,8 @@ const router = Router();
 router.use(authenticateToken);
 router.use(isAdmin);
 
+router.patch('/users/:userId/status', updateUserStatus);
+
 // --- Company Routes ---
 router.get("/companies", getAdminCompanies);
 router.patch("/companies/:companyId/verify", verifyCompany);

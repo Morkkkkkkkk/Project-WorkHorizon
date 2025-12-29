@@ -99,6 +99,7 @@ export const getAllUsers = async (req, res) => {
         role: true,
         createdAt: true,
         profileImageUrl: true,
+        status: true,
         company: {
           // (ดึงบริษัทที่เชื่อมโยง)
           select: {
@@ -363,6 +364,7 @@ export const getAdminStats = async (req, res, next) => {
     const pendingVerification = await prisma.company.count({
       where: { isVerified: false },
     });
+    
 
     // 2. นับข้อมูลใหม่ (7 วันล่าสุด)
     const newUsers = await prisma.user.count({
@@ -372,7 +374,28 @@ export const getAdminStats = async (req, res, next) => {
       where: { appliedAt: { gte: sevenDaysAgo } },
     });
 
-    // 3. ส่งข้อมูลกลับไป
+    // 2. (ใหม่) User Role Distribution (สำหรับ Pie Chart)
+    const userRoles = await prisma.user.groupBy({
+      by: ['role'],
+      _count: { role: true },
+    });
+
+    // 3. (ใหม่) Job Status Distribution (สำหรับ Bar/Pie Chart)
+    const jobStatus = await prisma.job.groupBy({
+      by: ['status'],
+      _count: { status: true },
+    });
+
+    // 4. (ใหม่) 5 งานล่าสุด (สำหรับ Recent Jobs Table)
+    const recentJobs = await prisma.job.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        company: { select: { companyName: true, logoUrl: true } },
+        jobType: true,
+      }
+    });
+
     res.json({
       totalUsers,
       totalJobs,
@@ -380,6 +403,12 @@ export const getAdminStats = async (req, res, next) => {
       pendingVerification,
       newUsers,
       newApplications,
+      // ส่งข้อมูลใหม่กลับไป
+      charts: {
+        userRoles: userRoles.map(r => ({ name: r.role, value: r._count.role })),
+        jobStatus: jobStatus.map(s => ({ name: s.status, value: s._count.status })),
+      },
+      recentJobs
     });
   } catch (error) {
     next(error);

@@ -30,8 +30,14 @@ export const useAdminUsers = () => {
 
   // (ฟังก์ชันสำหรับลบ)
   const deleteUser = async (userId) => {
-    await adminApi.deleteUser(userId);
-    await fetchUsers(); // (Refresh)
+    try {
+      await adminApi.deleteUser(userId);
+      await fetchUsers(); 
+      return true; // ส่งค่ากลับว่าทำสำเร็จ
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
   };
   
   // --- (เพิ่มฟังก์ชันใหม่สำหรับสร้างและแก้ไขผู้ใช้) ---
@@ -46,7 +52,18 @@ export const useAdminUsers = () => {
     await adminApi.adminUpdateUser(userId, userData);
     await fetchUsers(); // (Refresh)
   };
-  // --- (จบส่วนเพิ่มใหม่) ---
+  
+  const updateUserStatus = async (userId, status) => {
+    try {
+      await adminApi.updateUserStatus(userId, status);
+      await fetchUsers(); // โหลดข้อมูลใหม่เพื่อให้หน้าเว็บอัปเดตทันที
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError(err.message); // แสดง Error ถ้ามีปัญหา
+      return false;
+    }
+  };
 
-  return { users, isLoading, error, refreshUsers: fetchUsers, deleteUser, createUser, updateUser };
+  return { users, isLoading, error, refreshUsers: fetchUsers, deleteUser, createUser, updateUser, updateUserStatus };
 };

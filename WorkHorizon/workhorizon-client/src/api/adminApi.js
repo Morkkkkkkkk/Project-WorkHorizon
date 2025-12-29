@@ -48,20 +48,17 @@ const deleteAd = (adId) => {
 const updateAdImage = (adId, formData) => {
   return apiClient
     .post(`/advertisements/${adId}/image`, formData, {
-// ... (existing code) ...
+      // headers content-type auto-detected
     })
     .then(handleResponse);
 };
 
-
-
-// +++ (เพิ่มส่วนนี้) +++
 // --- Main Categories (หมวดหมู่หลัก) ---
 /**
  * (Admin/Public) ดึงหมวดหมู่หลักทั้งหมด
  */
 const getAdminMainCategories = () => {
-  return apiClient.get("/main-categories").then(handleResponse); // (ใช้ Public Route)
+  return apiClient.get("/main-categories").then(handleResponse);
 };
 
 /**
@@ -70,7 +67,7 @@ const getAdminMainCategories = () => {
  */
 const createMainCategory = (formData) => {
   return apiClient
-    .post("/main-categories", formData, { // (Endpoint ที่เราสร้าง)
+    .post("/main-categories", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -104,7 +101,6 @@ const updateMainCategoryImage = (catId, formData) => {
     .then(handleResponse);
 };
 
-
 /**
  * (Admin) ลบหมวดหมู่หลัก
  * @param {string} catId
@@ -112,9 +108,6 @@ const updateMainCategoryImage = (catId, formData) => {
 const deleteMainCategory = (catId) => {
   return apiClient.delete(`/main-categories/${catId}`).then(handleResponse);
 };
-// +++ (จบส่วนที่เพิ่ม) +++
-
-
 
 /**
  * (Admin) ดึงบริษัทที่รออนุมัติ
@@ -134,6 +127,8 @@ const verifyCompany = (companyId, isVerified) => {
     .then(handleResponse);
 };
 
+// --- Users (ผู้ใช้งาน) ---
+
 /**
  * (Admin) ดึงผู้ใช้ทั้งหมด
  */
@@ -149,7 +144,6 @@ const deleteUser = (userId) => {
   return apiClient.delete(`/admin/users/${userId}`).then(handleResponse);
 };
 
-// --- (เพิ่มฟังก์ชันใหม่สำหรับสร้างและแก้ไขผู้ใช้) ---
 /**
  * (Admin) สร้างผู้ใช้ใหม่
  * @param {object} userData
@@ -165,6 +159,16 @@ const adminCreateUser = (userData) => {
  */
 const adminUpdateUser = (userId, userData) => {
   return apiClient.put(`/admin/users/${userId}`, userData).then(handleResponse);
+};
+
+// ✅✅✅ (เพิ่มฟังก์ชันนี้) อัปเดตสถานะผู้ใช้ (Active/Suspend/Ban)
+/**
+ * (Admin) เปลี่ยนสถานะผู้ใช้
+ * @param {string} userId 
+ * @param {string} status ('ACTIVE' | 'SUSPENDED' | 'BANNED')
+ */
+const updateUserStatus = (userId, status) => {
+  return apiClient.patch(`/admin/users/${userId}/status`, { status }).then(handleResponse);
 };
 
 /**
@@ -200,24 +204,20 @@ const adminDeleteJob = (jobId) => {
   return apiClient.delete(`/admin/jobs/${jobId}`).then(handleResponse);
 };
 
-
-
- // --- Helper CRUD function สำหรับ Master Data ---
+// --- Helper CRUD function สำหรับ Master Data ---
 const createMasterDataCRUD = (endpoint) => ({
-  create: (payload) => { // (อัปเดต) 1. เปลี่ยน (name, extraData) เป็น (payload)
-    // (ลบ) (ย้าย Logic การเช็ก name ไปไว้ที่ Controller)
+  create: (payload) => { 
     return apiClient
-      .post(`/admin/${endpoint}`, payload) // (ส่ง payload ทั้งก้อน)
+      .post(`/admin/${endpoint}`, payload) 
       .then(handleResponse);
   },
-  update: (id, payload) => { // (อัปเดต) 2. เปลี่ยน (name, extraData) เป็น (payload)
-    // (ลบ) (ย้าย Logic การเช็ก name ไปไว้ที่ Controller)
+  update: (id, payload) => { 
     return apiClient
-      .put(`/admin/${endpoint}/${id}`, payload) // (ส่ง payload ทั้งก้อน)
+      .put(`/admin/${endpoint}/${id}`, payload) 
       .then(handleResponse);
   },
   delete: (id) => apiClient.delete(`/admin/${endpoint}/${id}`).then(handleResponse),
-})
+});
 
 // --- สร้าง API สำหรับ Master Data ---
 export const subCategoryApi = createMasterDataCRUD('sub-categories');
@@ -253,7 +253,6 @@ export const adminApi = {
     delete: deleteMainCategory,
   },
 
-
   // Companies
   getAdminCompanies,
   verifyCompany,
@@ -263,13 +262,14 @@ export const adminApi = {
   deleteUser,
   adminCreateUser, 
   adminUpdateUser,
+  updateUserStatus, // ✅✅✅ อย่าลืมเพิ่มตรงนี้ด้วย เพื่อส่งออกไปใช้งาน
 
   // Jobs 
   getAdminAllJobs,
   adminUpdateJob,
   adminDeleteJob,
 
-  // Master Data (เพิ่มใหม่)
+  // Master Data
   subCategory: subCategoryApi,
   jobType: jobTypeApi,
   industry: industryApi,
