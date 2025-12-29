@@ -27,18 +27,39 @@ export const useAdminMasterData = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+
+      // ✅ เพิ่ม Helper function นี้เพื่อดึง Array ออกมาจาก Response ไม่ว่าจะมาท่าไหน
+      const getArray = (res) => {
+        // กรณี 1: Backend ส่ง Array มาตรงๆ [..., ...]
+        if (Array.isArray(res.data)) return res.data;
+        
+        // กรณี 2: Backend ห่อด้วย data { data: [...] }
+        if (res.data && Array.isArray(res.data.data)) return res.data.data;
+        
+        // กรณี 3: Backend ห่อด้วย items { items: [...] }
+        if (res.data && Array.isArray(res.data.items)) return res.data.items;
+        
+        // กรณี 4: ห่อด้วย result { result: [...] }
+        if (res.data && Array.isArray(res.data.result)) return res.data.result;
+
+        // กันเหนียว: ถ้าหาไม่เจอให้คืน Array ว่าง
+        return []; 
+      };
+
+      // ใช้ .then(getArray) แทน .then(res => res.data)
       const [mainCategories, subCategories, skills, jobTypes, industries, provinces, districts] = await Promise.all([
-        apiClient.get('/main-categories').then(res => res.data),
-        apiClient.get('/admin/sub-categories').then(res => res.data),
-        apiClient.get('/admin/skills').then(res => res.data),
-        apiClient.get('/admin/job-types').then(res => res.data),
-        apiClient.get('/admin/industries').then(res => res.data),
-        apiClient.get('/admin/provinces').then(res => res.data),
-        apiClient.get('/admin/districts').then(res => res.data),
+        apiClient.get('/main-categories').then(getArray),
+        apiClient.get('/admin/sub-categories').then(getArray),
+        apiClient.get('/admin/skills').then(getArray),
+        apiClient.get('/admin/job-types').then(getArray),
+        apiClient.get('/admin/industries').then(getArray),
+        apiClient.get('/admin/provinces').then(getArray),
+        apiClient.get('/admin/districts').then(getArray),
       ]);
 
       setData({ mainCategories, subCategories, skills, jobTypes, industries, provinces, districts });
     } catch (err) {
+      console.error("Fetch Master Data Error:", err);
       setError(err.response?.data?.error || err.message);
     } finally {
       setIsLoading(false);

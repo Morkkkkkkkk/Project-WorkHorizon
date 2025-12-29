@@ -1,420 +1,342 @@
-import React, { useState, useMemo } from 'react';
-import { useAdminMasterData } from '../hooks/useAdminMasterData.js'; // Assumed existing hook
-import LoadingSpinner from '../components/LoadingSpinner.jsx'; // Assumed existing component
-import Modal from '../components/Modal.jsx'; // Assumed existing component
-import MasterDataForm from '../components/MasterDataForm.jsx'; // Assumed existing component
+import React, { useState, useEffect, useMemo } from 'react';
+// import AdminLayout from '../layouts/AdminLayout'; // ❌ DELETE THIS IMPORT
+import { useAdminMasterData } from '../hooks/useAdminMasterData';
+import MasterDataForm from '../components/MasterDataForm';
+import Modal from '../components/Modal';
+// import Pagination from '../components/Pagination'; // You might need this if not defining locally
+import LoadingSpinner from '../components/LoadingSpinner';
 import { 
-  Trash2, Edit2, Database, Plus, Search, MapPin, 
-  Briefcase, Layers, Award, ChevronLeft, ChevronRight, 
-  Filter, ArrowUpDown, MoreHorizontal 
+  Briefcase, 
+  MapPin, 
+  Navigation, 
+  Award, 
+  Plus, 
+  Search, 
+  Edit2, 
+  Trash2,
+  Database,
+  AlertCircle,
+  Layers,
+  ArrowUpDown
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-// --- Sub-Component: Pagination Controls ---
-const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, itemsPerPage }) => {
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
-      <div className="text-sm text-slate-500">
-        แสดง {((currentPage - 1) * itemsPerPage) + 1} ถึง {Math.min(currentPage * itemsPerPage, totalItems)} จาก {totalItems} รายการ
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span className="text-sm font-medium text-slate-700">
-          หน้า {currentPage} / {totalPages}
-        </span>
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
-    </div>
-  );
+// --- Sub-Component: Pagination ---
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    if (totalPages <= 1) return null;
+    return (
+        <div className="flex justify-center gap-2 mt-4">
+            <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded bg-white border border-slate-200 disabled:opacity-50"
+            >
+                Prev
+            </button>
+            <span className="px-3 py-1 text-slate-600">
+                Page {currentPage} of {totalPages}
+            </span>
+            <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 rounded bg-white border border-slate-200 disabled:opacity-50"
+            >
+                Next
+            </button>
+        </div>
+    );
 };
 
-// --- Sub-Component: Data Table View ---
-const DataTableView = ({ title, modelName, data, onEdit, onDelete, icon: Icon, colorClass }) => {
+const AdminMasterDataPage = () => {
+  // Config for Tabs
+  const [activeTab, setActiveTab] = useState('jobTypes'); 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // 1. Hook
+  const {
+    data, 
+    isLoading,
+    error,
+    fetchData,
+    createItem,
+    updateItem,
+    deleteItem,
+  } = useAdminMasterData(); 
+
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [isDeleting, setIsDeleting] = useState(null);
   const itemsPerPage = 10;
 
-  // Reset page when switching models or searching
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [modelName, searchTerm]);
+  // Map Tab ID to API Model Name (Singular)
+  const tabToModelMap = {
+    jobTypes: 'jobType',
+    skills: 'skill',
+    provinces: 'province',
+    districts: 'district',
+    subCategories: 'subCategory', // Added based on your config
+    industries: 'industry'        // Added based on your config
+  };
 
-  const handleDelete = async (id, name) => {
+  useEffect(() => {
+    setSearchTerm('');
+    setCurrentPage(1);
+  }, [activeTab]);
+
+  const handleCreateClick = () => {
+    setModalMode('create');
+    setSelectedItem(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (item) => {
+    setModalMode('edit');
+    setSelectedItem(item);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = async (id, name) => {
     const result = await Swal.fire({
-      title: 'ยืนยันการลบ?',
-      html: `คุณต้องการลบ <b>"${name}"</b> ใช่หรือไม่?<br/><span class="text-sm text-gray-500">การกระทำนี้ไม่สามารถย้อนกลับได้</span>`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#94a3b8',
-      confirmButtonText: 'ใช่, ลบเลย',
-      cancelButtonText: 'ยกเลิก',
-      focusCancel: true
+        title: 'ยืนยันการลบ?',
+        text: `คุณต้องการลบ "${name}" หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ลบ',
+        cancelButtonText: 'ยกเลิก'
     });
 
     if (result.isConfirmed) {
-      setIsDeleting(id);
+      const modelName = tabToModelMap[activeTab]; 
       try {
-        await onDelete(modelName, id);
-        Swal.fire({
-          icon: 'success',
-          title: 'ลบสำเร็จ',
-          text: 'ข้อมูลถูกลบเรียบร้อยแล้ว',
-          timer: 1500,
-          showConfirmButton: false
-        });
+          await deleteItem(modelName, id);
+          Swal.fire('ลบสำเร็จ!', 'ข้อมูลถูกลบแล้ว', 'success');
       } catch (err) {
-        Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || err.message, 'error');
-      } finally {
-        setIsDeleting(null);
+          Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       }
     }
   };
 
-  // Filter & Pagination Logic
-  const filteredData = useMemo(() => {
-    return data.filter(item => 
-      item.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [data, searchTerm]);
-
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const currentData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full animate-fade-in">
-      {/* Header Toolbar */}
-      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white">
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl ${colorClass} bg-opacity-10 ring-1 ring-inset ring-black/5`}>
-            <Icon size={22} className={colorClass.split(' ')[1]} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-            <p className="text-sm text-slate-500">จัดการข้อมูลทั้งหมด {data.length} รายการ</p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-            <input
-              type="text"
-              placeholder="ค้นหา..."
-              className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button
-            onClick={() => onEdit(modelName, null)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-sm shadow-blue-200 transition-all active:scale-95"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">เพิ่มข้อมูล</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="flex-1 overflow-auto bg-slate-50/30">
-        {filteredData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-            <div className="p-4 bg-slate-100 rounded-full mb-3">
-              <Search size={32} className="opacity-40" />
-            </div>
-            <p className="font-medium">ไม่พบข้อมูลที่ค้นหา</p>
-            <p className="text-sm mt-1 text-slate-400">ลองใช้คำค้นหาอื่น หรือเพิ่มข้อมูลใหม่</p>
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-              <tr>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">
-                  #
-                </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:text-slate-700">
-                  ชื่อข้อมูล <ArrowUpDown size={12} />
-                </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  สถานะ
-                </th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  จัดการ
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-100">
-              {currentData.map((item, index) => (
-                <tr 
-                  key={item.id} 
-                  className="hover:bg-blue-50/30 transition-colors duration-150 group"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 font-mono">
-                    {((currentPage - 1) * itemsPerPage) + index + 1}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-700">{item.name}</div>
-                    {item.code && <div className="text-xs text-slate-400 mt-0.5">Code: {item.code}</div>}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      ใช้งาน
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => onEdit(modelName, item)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="แก้ไข"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.name)}
-                        disabled={isDeleting === item.id}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
-                        title="ลบ"
-                      >
-                        {isDeleting === item.id ? (
-                          <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <Trash2 size={16} />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Footer Pagination */}
-      <Pagination 
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-        totalItems={filteredData.length}
-        itemsPerPage={itemsPerPage}
-      />
-    </div>
-  );
-};
-
-// --- Main Page Component ---
-const AdminMasterDataPage = () => {
-  const { data, isLoading, error, createItem, updateItem, deleteItem } = useAdminMasterData();
-  
-  // State
-  const [activeTab, setActiveTab] = useState('jobType');
-  const [modalState, setModalState] = useState({ isOpen: false, modelName: null, data: null });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [actionError, setActionError] = useState(null);
-
-  // Configuration for Tabs/Menu
-  const masterDataConfig = [
-    { id: "jobType", title: "ประเภทงาน", subtitle: "Job Types", icon: Briefcase, color: "text-blue-600 bg-blue-100" },
-    { id: "subCategory", title: "สายงานย่อย", subtitle: "Sub Categories", icon: Layers, color: "text-indigo-600 bg-indigo-100" },
-    { id: "skill", title: "ทักษะ", subtitle: "Skills", icon: Award, color: "text-emerald-600 bg-emerald-100" },
-    { id: "industry", title: "อุตสาหกรรม", subtitle: "Industries", icon: Database, color: "text-amber-600 bg-amber-100" },
-    { id: "province", title: "จังหวัด", subtitle: "Provinces", icon: MapPin, color: "text-pink-600 bg-pink-100" },
-    { id: "district", title: "อำเภอ/เขต", subtitle: "Districts", icon: MapPin, color: "text-violet-600 bg-violet-100" },
-  ];
-
-  const activeConfig = masterDataConfig.find(c => c.id === activeTab);
-  const activeData = data ? data[activeTab + (activeTab.endsWith('y') ? 'ies' : 's')] : []; 
-  // Note: Handling pluralization 'y' -> 'ies' or adding 's' is a rough heuristic based on your initial code structure.
-  // Adjust key access (e.g., data.jobTypes) as per your exact API response structure.
-  
-  // Helper to get correct data array safely
-  const getItems = (key) => {
-    if (!data) return [];
-    // Map 'subCategory' to 'subCategories', 'skill' to 'skills', etc.
-    const pluralMap = {
-      subCategory: 'subCategories',
-      skill: 'skills',
-      jobType: 'jobTypes',
-      industry: 'industries',
-      province: 'provinces',
-      district: 'districts'
-    };
-    return data[pluralMap[key]] || [];
-  };
-
-  const openModal = (modelName, data = null) => setModalState({ isOpen: true, modelName, data });
-  const closeModal = () => { setModalState({ isOpen: false, modelName: null, data: null }); setActionError(null); };
-
-  const handleSubmit = async (payload, id) => {
-    const { modelName } = modalState;
-    setIsSubmitting(true);
-    setActionError(null);
+  const handleFormSubmit = async (formData) => {
+    const modelName = tabToModelMap[activeTab];
+    let success = false;
+    
     try {
-      if (id) await updateItem(modelName, id, payload);
-      else await createItem(modelName, payload);
-      
-      Swal.fire({
-        icon: 'success',
-        title: 'บันทึกสำเร็จ',
-        showConfirmButton: false,
-        timer: 1000
-      });
-      closeModal();
+        if (modalMode === 'create') {
+        success = await createItem(modelName, formData);
+        } else {
+        success = await updateItem(modelName, selectedItem.id, formData);
+        }
+
+        if (success) {
+        setIsModalOpen(false);
+        Swal.fire('บันทึกสำเร็จ', '', 'success');
+        }
     } catch (err) {
-      setActionError(err.response?.data?.error || err.message || "เกิดข้อผิดพลาด");
-    } finally {
-      setIsSubmitting(false);
+        // Error handling is usually done inside the hook or api call, 
+        // but if it propagates here:
+        console.error(err);
     }
   };
 
-  if (isLoading) return <LoadingSpinner text="กำลังโหลดฐานข้อมูล..." />;
-  if (error) return (
-    <div className="min-h-[500px] flex items-center justify-center p-4">
-      <div className="text-center max-w-md p-8 bg-red-50 rounded-3xl border border-red-100">
-        <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Database size={32} />
-        </div>
-        <h1 className="text-xl font-bold text-red-800 mb-2">ไม่สามารถโหลดข้อมูลได้</h1>
-        <p className="text-red-600 mb-6">{error}</p>
-        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">
-          ลองใหม่อีกครั้ง
-        </button>
-      </div>
-    </div>
+  // ✅ 3. Correctly access data array
+  // Ensure we check if data exists and access the correct key
+  const currentList = (data && data[activeTab]) ? data[activeTab] : [];
+
+  // ✅ 4. Filter safely
+  const filteredData = Array.isArray(currentList) 
+    ? currentList.filter(item => 
+        item.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : [];
+
+  // Pagination Logic
+  const totalItems = filteredData.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
   );
 
+  const tabs = [
+    { id: 'jobTypes', label: 'ประเภทงาน', icon: Briefcase, color: 'text-blue-600' },
+    { id: 'subCategories', label: 'สายงานย่อย', icon: Layers, color: 'text-indigo-600' }, // New
+    { id: 'skills', label: 'ทักษะ', icon: Award, color: 'text-purple-600' },
+    { id: 'industries', label: 'อุตสาหกรรม', icon: Database, color: 'text-amber-600' }, // New
+    { id: 'provinces', label: 'จังหวัด', icon: MapPin, color: 'text-green-600' },
+    { id: 'districts', label: 'อำเภอ/เขต', icon: Navigation, color: 'text-orange-600' },
+  ];
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-500 bg-red-50 rounded-xl border border-red-100 m-6">
+        <AlertCircle className="mx-auto w-12 h-12 mb-4" />
+        <h3 className="text-lg font-bold">เกิดข้อผิดพลาด</h3>
+        <p>{error}</p>
+        <button onClick={() => fetchData()} className="mt-4 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg">
+            ลองใหม่อีกครั้ง
+        </button>
+      </div>
+    );
+  }
+
+  // ❌ REMOVED <AdminLayout> wrapper here because App.jsx handles it via Outlet
   return (
-    <div className="min-h-screen bg-slate-50/50 p-4 md:p-6 lg:p-8 font-sans">
-      <div className="max-w-7xl mx-auto">
+      <div className="space-y-6">
         
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-200">
-              <Database size={24} />
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Database className="text-blue-600" />
+                    จัดการข้อมูลหลัก (Master Data)
+                </h1>
+                <p className="text-slate-500">จัดการข้อมูลพื้นฐานของระบบ</p>
             </div>
-            Master Data Management
-          </h1>
-          <p className="text-slate-500 mt-2 text-lg max-w-2xl">
-            จัดการข้อมูลพื้นฐาน (Master Data Management) ทั้งหมดของระบบได้ในที่เดียว เพื่อความเป็นระเบียบและง่ายต่อการใช้งาน
-          </p>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] min-h-[600px]">
-          
-          {/* Sidebar Navigation */}
-          <div className="w-full lg:w-72 flex-shrink-0 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">หมวดหมู่ข้อมูล</h3>
-            </div>
-            <div className="p-2 space-y-1 overflow-y-auto flex-1 custom-scroll">
-              {masterDataConfig.map((item) => {
-                const isActive = activeTab === item.id;
-                const count = getItems(item.id).length;
-                
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 group ${
-                      isActive 
-                        ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg transition-colors ${
-                        isActive ? 'bg-white text-blue-600 shadow-sm' : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:shadow-sm'
-                      }`}>
-                        <item.icon size={18} />
-                      </div>
-                      <div className="text-left">
-                        <div className={`font-semibold text-sm ${isActive ? 'text-blue-900' : 'text-slate-700'}`}>
-                          {item.title}
-                        </div>
-                        <div className={`text-xs ${isActive ? 'text-blue-400' : 'text-slate-400'}`}>
-                          {item.subtitle}
-                        </div>
-                      </div>
-                    </div>
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      isActive ? 'bg-blue-200 text-blue-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {/* --- 1. Tab Navigation --- */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 flex flex-wrap gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                ${activeTab === tab.id 
+                  ? 'bg-slate-900 text-white shadow-md' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                }
+              `}
+            >
+              <tab.icon size={18} className={activeTab === tab.id ? 'text-white' : tab.color} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Main Content Area */}
-          <div className="flex-1 min-w-0">
-            <DataTableView
-              key={activeTab} // Force re-render when tab changes to reset states
-              title={activeConfig.title}
-              modelName={activeConfig.id}
-              items={getItems(activeConfig.id)} // Pass specific items
-              data={getItems(activeConfig.id)} // Pass specific items
-              onEdit={openModal}
-              onDelete={deleteItem}
-              icon={activeConfig.icon}
-              colorClass={activeConfig.color}
+        {/* --- 2. Action Bar (Search & Add) --- */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          {/* Search Input */}
+          <div className="relative w-full md:w-96 group">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder={`ค้นหา${tabs.find(t => t.id === activeTab)?.label}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
-        </div>
-      </div>
 
-      {/* Modal Form */}
-      <Modal 
-        isOpen={modalState.isOpen} 
-        onClose={closeModal} 
-        title={
-          <div className="flex items-center gap-2">
-            {modalState.data ? <Edit2 size={20} className="text-blue-600"/> : <Plus size={20} className="text-blue-600"/>}
-            <span>{modalState.data ? `แก้ไข ${activeConfig?.title}` : `เพิ่ม ${activeConfig?.title} ใหม่`}</span>
-          </div>
-        }
-      >
-        <div className="px-1">
-          <MasterDataForm
-            onClose={closeModal}
-            onSubmit={handleSubmit}
-            initialData={modalState.data}
-            isSubmitting={isSubmitting}
-            provinces={data?.provinces || []}
-            mainCategories={data?.mainCategories || []}
-            modelName={modalState.modelName}
-          />
-          {actionError && (
-            <div className="mx-6 mb-6 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-start gap-3">
-              <div className="mt-0.5"><Filter size={16} className="rotate-180" /></div>
-              <div className="text-sm">{actionError}</div>
+          {/* Add Button */}
+          <button
+            onClick={handleCreateClick}
+            className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-200 font-medium"
+          >
+            <Plus size={20} />
+            <span>เพิ่มข้อมูลใหม่</span>
+          </button>
+        </div>
+
+        {/* --- 3. Data Table --- */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          {isLoading ? (
+            <div className="p-20 flex justify-center items-center">
+              <LoadingSpinner />
+            </div>
+          ) : paginatedData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ลำดับ</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-full">ชื่อข้อมูล</th>
+                    {/* แสดงคอลัมน์จังหวัด เฉพาะเมื่ออยู่ที่ Tab Districts */}
+                    {activeTab === 'districts' && (
+                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">จังหวัด</th>
+                    )}
+                    <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100">
+                  {paginatedData.map((item, index) => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 font-mono">
+                        {(currentPage - 1) * itemsPerPage + index + 1}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-slate-700 group-hover:text-blue-700 transition-colors">
+                          {item.name}
+                        </div>
+                      </td>
+                      {activeTab === 'districts' && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                {item.province?.name || '-'}
+                             </span>
+                        </td>
+                      )}
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="แก้ไข">
+                            <Edit2 size={18} />
+                          </button>
+                          <button onClick={() => handleDeleteClick(item.id, item.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="ลบ">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            // --- Empty State ---
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                <Database className="text-slate-300" size={32} />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-1">ไม่พบข้อมูล</h3>
+              <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
+                ยังไม่มีข้อมูลในหมวดหมู่นี้ หรือข้อมูลที่คุณค้นหาไม่ตรงกับรายการใดๆ
+              </p>
+              <button onClick={handleCreateClick} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+                <Plus size={16} className="mr-2" /> เพิ่มข้อมูลแรก
+              </button>
             </div>
           )}
         </div>
-      </Modal>
-    </div>
+
+        {/* --- 4. Pagination --- */}
+        {!isLoading && totalPages > 1 && (
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        )}
+
+        {/* --- 5. Modal --- */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title={modalMode === 'create' ? `เพิ่มข้อมูลใหม่` : `แก้ไขข้อมูล`}
+        >
+          <MasterDataForm
+            initialData={selectedItem}
+            type={activeTab} // ส่ง tab ปัจจุบัน (พหูพจน์) ไปให้ Form
+            onSubmit={handleFormSubmit}
+            onClose={() => setIsModalOpen(false)}
+            isLoading={isLoading}
+            // Pass necessary props for dropdowns inside form
+            provinces={data?.provinces || []}
+            mainCategories={data?.mainCategories || []}
+          />
+        </Modal>
+      </div>
   );
 };
 
