@@ -94,6 +94,9 @@ export const login = async (req, res) => {
     // 1. ค้นหาผู้ใช้
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
+
+      console.log("❌ User not found");
+
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -107,6 +110,7 @@ export const login = async (req, res) => {
 
     // 2. ตรวจสอบรหัสผ่าน
     const isMatch = await comparePassword(password, user.password);
+
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }

@@ -8,17 +8,26 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('jobhub_token'));
   const [isLoading, setIsLoading] = useState(true);
 
+  // 1. โหลด User เมื่อมี Token (ตอนเข้าเว็บใหม่)
   useEffect(() => {
     const loadUserFromToken = async () => {
       if (token) {
         try {
+          // ✅ FIX 1: บังคับใส่ Header ก่อนยิง API
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          
           const { data } = await apiClient.get('/auth/me');
           setUser(data);
         } catch (error) {
-          console.error("Token ไม่ถูกต้อง:", error);
-          setToken(null);
+          console.error("Token invalid/expired:", error);
+          // ถ้า Token ใช้ไม่ได้ ให้ลบทิ้ง
           localStorage.removeItem('jobhub_token');
+          setToken(null);
+          setUser(null);
+          delete apiClient.defaults.headers.common['Authorization'];
         }
+      } else {
+          setUser(null);
       }
       setIsLoading(false);
     };
@@ -26,40 +35,46 @@ export const AuthProvider = ({ children }) => {
     loadUserFromToken();
   }, [token]);
 
+  // 2. ฟังก์ชัน Login (ฉบับแก้ไข: ไม่เรียก /me ซ้ำ)
   const login = async (email, password) => {
     try {
       const { data } = await apiClient.post('/auth/login', { email, password });
 
-      setUser(data.user);
-      setToken(data.token);
-      localStorage.setItem('jobhub_token', data.token);
-
-      // (อัปเดต) (ดึงโปรไฟล์เต็มหลังล็อกอิน เพื่อให้ Role อัปเดตทันที)
-      if (data.token) {
-        const { data: meData } = await apiClient.get('/auth/me');
-        setUser(meData);
-        return { user: meData, token: data.token }; // ✅ Return user data AND token
+      // เช็คว่า Server ส่งของมาครบไหม
+      if (!data.token || !data.user) {
+         throw new Error("Invalid response from server");
       }
-      return { user: data.user, token: data.token };
+
+      // 1. เก็บ Token
+      localStorage.setItem('jobhub_token', data.token);
+      setToken(data.token);
+      
+      // ✅ FIX 2: อัปเดต Header ทันที! (สำคัญมาก เพื่อให้ request ต่อไปใช้งานได้เลย)
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+
+      // 2. ใช้ User Data จาก Login Response เลย (ไม่ต้องเรียก /me ซ้ำให้เสี่ยง Error)
+      setUser(data.user);
+
+      return { success: true, user: data.user, token: data.token };
 
     } catch (error) {
-      console.error("Login ล้มเหลว:", error);
+      console.error("Login failed:", error);
       throw error.response?.data || error;
     }
   };
 
-  // ✅ NEW: Function to login with a stored token (for "Remember Me")
   const loginWithToken = async (storedToken) => {
     try {
       setToken(storedToken);
       localStorage.setItem('jobhub_token', storedToken);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      
       const { data } = await apiClient.get('/auth/me');
       setUser(data);
       return data;
     } catch (error) {
       console.error("Login with token failed:", error);
-      setToken(null);
-      localStorage.removeItem('jobhub_token');
+      logout();
       throw error;
     }
   };
@@ -69,24 +84,21 @@ export const AuthProvider = ({ children }) => {
       const { data } = await apiClient.post('/auth/register', userData);
       return data;
     } catch (error) {
-      console.error("Register ล้มเหลว:", error);
       throw error.response?.data || error;
     }
   };
-
 
   const logout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('jobhub_token');
+    delete apiClient.defaults.headers.common['Authorization'];
+    // window.location.href = '/login'; // ถ้าต้องการ Redirect
   };
 
-  // (อัปเดต) (ฟังก์ชันสำหรับอัปเดต user state โดยตรง)
-  // (เราจะใช้ฟังก์ชันนี้ใน BasicInfoForm เพื่อให้รูปโปรไฟล์เปลี่ยนทันที)
   const refreshAuthUser = (updatedUser) => {
     setUser(prev => ({ ...prev, ...updatedUser }));
   };
-
 
   const value = {
     user,
@@ -95,13 +107,13 @@ export const AuthProvider = ({ children }) => {
     isAuth: !!user,
     isEmployer: user?.role === 'EMPLOYER',
     isJobSeeker: user?.role === 'JOB_SEEKER',
-    isAdmin: user?.role === 'SUPER_ADMIN',
+    isAdmin: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN',
     isFreelancer: user?.role === 'FREELANCER',
     login,
-    loginWithToken, // ✅ Export new function
+    loginWithToken,
     register,
     logout,
-    refreshAuthUser, // 
+    refreshAuthUser,
   };
 
   return (
@@ -114,7 +126,7 @@ export const AuthProvider = ({ children }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth ต้องถูกเรียกใช้ภายใน AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 };

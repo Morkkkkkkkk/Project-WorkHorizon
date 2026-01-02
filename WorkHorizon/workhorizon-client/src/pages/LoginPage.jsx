@@ -44,10 +44,8 @@ const LoginPage = () => {
       token: userData.token
     };
 
-    let updatedUsers = [...recentUsers]
-      .filter(u => u.email !== userData.email)
-      .unshift(newUser);
-    updatedUsers = updatedUsers.slice(0, 4);
+    const currentUsers = recentUsers.filter(u => u.email !== userData.email);
+    const updatedUsers = [newUser, ...currentUsers].slice(0, 4);
 
     if (rememberMe) {
       localStorage.setItem('workhorizon_recent_users', JSON.stringify(updatedUsers));
