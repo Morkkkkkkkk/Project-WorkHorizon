@@ -234,6 +234,23 @@ export const featuredSectionApi = {
   delete: (id) => apiClient.delete(`/admin/featured-sections/${id}`).then(handleResponse),
 };
 
+// --- Withdrawals (การถอนเงิน) ---
+/**
+ * (Admin) ดึงรายการขอถอนเงินที่รอตรวจสอบ (PENDING)
+ */
+const getWithdrawalRequests = () => {
+  return apiClient.get("/admin/withdrawals").then(handleResponse);
+};
+
+/**
+ * (Admin) อนุมัติหรือปฏิเสธการถอนเงิน
+ * @param {string} transactionId 
+ * @param {string} action ('APPROVE' | 'REJECT')
+ */
+const approveWithdrawal = (transactionId, action) => {
+  return apiClient.patch(`/admin/transactions/${transactionId}/withdraw`, { action }).then(handleResponse);
+};
+
 // ส่งออก
 export const adminApi = {
 
@@ -281,4 +298,7 @@ export const adminApi = {
   getAdminStats,
 
   featuredSection: featuredSectionApi,
+
+  getWithdrawalRequests,
+  approveWithdrawal,
 };

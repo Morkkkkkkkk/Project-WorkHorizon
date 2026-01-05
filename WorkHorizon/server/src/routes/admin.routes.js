@@ -41,6 +41,9 @@ import {
   getAdminStats,
   updateUserStatus,
 
+  getWithdrawalRequests, 
+  approveWithdrawal
+
 } from "../controllers/admin.controller.js";
 import { authenticateToken, isAdmin } from "../middlewares/auth.middleware.js";
 import { getAdminSections,createSection,updateSection,deleteSection,} from "../controllers/featuredSection.controller.js";
@@ -114,6 +117,10 @@ router.get("/featured-sections", getAdminSections);
 router.post("/featured-sections", createSection);
 router.put("/featured-sections/:id", updateSection);
 router.delete("/featured-sections/:id", deleteSection);
+
+// --- Withdrawal Routes ---
+router.get('/withdrawals', getWithdrawalRequests);
+router.patch('/transactions/:transactionId/withdraw', approveWithdrawal);
 
 
 

@@ -604,3 +604,70 @@ export const adminGetDistricts = async (req, res) => {
   }
 };
 
+// --- 🏦 ADMIN: จัดการการถอนเงิน ---
+
+// GET /api/admin/withdrawals -> ดูรายการรอถอน
+export const getWithdrawalRequests = async (req, res) => {
+   try {
+     const withdrawals = await prisma.transaction.findMany({
+       where: { 
+         method: 'BANK_TRANSFER',
+         receiverId: null, // เป็นการถอนเงินออก
+         status: 'PENDING' // เฉพาะที่รอตรวจสอบ
+       },
+       include: {
+         payer: { 
+           select: { id: true, firstName: true, lastName: true, email: true, phone: true, walletBalance: true } 
+         }
+       },
+       orderBy: { createdAt: 'asc' }
+     });
+     res.json(withdrawals);
+   } catch (error) {
+     res.status(500).json({ error: error.message });
+   }
+};
+
+// PATCH /api/admin/transactions/:transactionId/withdraw -> อนุมัติ/ปฏิเสธ
+export const approveWithdrawal = async (req, res) => {
+  const { transactionId } = req.params;
+  const { action } = req.body; // ต้องส่งมาว่า 'APPROVE' หรือ 'REJECT'
+
+  try {
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId }
+    });
+
+    if (!transaction || transaction.status !== 'PENDING') {
+      return res.status(400).json({ error: "Transaction not found or not pending" });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (action === 'APPROVE') {
+        // ✅ อนุมัติ: เปลี่ยนสถานะเป็น SUCCESS 
+        // (ในชีวิตจริง Admin ต้องไปโอนเงินผ่านแอปธนาคารให้ลูกค้าก่อน แล้วค่อยมากดปุ่มนี้)
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: 'SUCCESS' }
+        });
+
+      } else if (action === 'REJECT') {
+        // ❌ ปฏิเสธ: เปลี่ยนสถานะเป็น FAILED และ **คืนเงินให้ User**
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: 'FAILED' }
+        });
+
+        await tx.user.update({
+          where: { id: transaction.payerId },
+          data: { walletBalance: { increment: transaction.amount } }
+        });
+      }
+    });
+
+    res.json({ message: `Withdrawal ${action}D successfully` });
+
+  } catch (error) {
+    res.status(500).json({ error: "Operation failed", details: error.message });
+  }
+};

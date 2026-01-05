@@ -14,7 +14,8 @@ import {
   Image,
   Star,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Wallet,
 } from "lucide-react";
 import { BACKEND_URL } from "../api/apiClient.js";
 
@@ -149,6 +150,12 @@ const AdminLayout = () => {
                 to="/admin/verify"
                 label="อนุมัติบริษัท"
                 icon={<ShieldCheck size={20} />}
+                collapsed={isCollapsed}
+              />
+              <AdminNavLink
+                to="/admin/withdrawals"
+                label="รายการถอนเงิน"
+                icon={<Wallet size={20} />}
                 collapsed={isCollapsed}
               />
               <AdminNavLink

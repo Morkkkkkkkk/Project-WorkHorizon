@@ -29,6 +29,7 @@ import AdminJobManagementPage from './pages/AdminJobManagementPage.jsx';
 import AdminMasterDataPage from './pages/AdminMasterDataPage.jsx';
 import AdminMainCategoriesPage from './pages/AdminMainCategoriesPage.jsx';
 import AdminFeaturedPage from './pages/AdminFeaturedPage.jsx';
+import AdminWithdrawalsPage from './pages/AdminWithdrawalsPage';
 
 import FreelancerProfilePage from "./pages/FreelancerProfilePage.jsx";
 import PublicFreelancerPage from "./pages/PublicFreelancerPage.jsx";
@@ -214,6 +215,7 @@ function App() {
         <Route path="/admin/master-data" element={<AdminMasterDataPage />} />
         <Route path="/admin/main-categories" element={<AdminMainCategoriesPage />} />
         <Route path="/admin/featured" element={<AdminFeaturedPage />} />
+        <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
       </Route>
       {/* (จบส่วน Admin) */}
 

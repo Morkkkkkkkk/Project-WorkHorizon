@@ -1,185 +1,161 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-// --- 🛠️ MOCK DATA สำหรับทดสอบ ---
+// --- 🛠️ MOCK DATA ---
 const MOCK_CARDS = {
-  '4242424242424242': { status: 'SUCCESS', message: 'ชำระเงินสำเร็จ' }, // บัตรผ่าน
-  '4000000000000000': { status: 'FAILED', message: 'บัตรถูกปฏิเสธ (Card Declined)' }, // บัตรเสีย
-  '5555555555555555': { status: 'FAILED', message: 'วงเงินไม่เพียงพอ (Insufficient Funds)' }, // เงินไม่พอ
+  '4242424242424242': { status: 'SUCCESS', message: 'ชำระเงินสำเร็จ' },
+  '4000000000000000': { status: 'FAILED', message: 'บัตรถูกปฏิเสธ' },
+  '5555555555555555': { status: 'FAILED', message: 'วงเงินไม่เพียงพอ' },
 };
 
 export const processPayment = async (req, res) => {
-  const { payerId, receiverId, amount, method, workId, cardDetails } = req.body;
+  // 1. 🔒 Security: ใช้ ID จาก Token เท่านั้น
+  const payerId = req.user.id; 
+  const { amount, method, workId, cardDetails } = req.body;
 
   try {
-    if (!payerId) return res.status(401).json({ success: false, message: "Unauthorized" });
-    
-    // 1. หา User
-    const payer = await prisma.user.findUnique({ where: { id: payerId } });
-    if (!payer) return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้" });
+    if (!amount || amount <= 0) return res.status(400).json({ message: "ยอดเงินไม่ถูกต้อง" });
 
-    // 2. หน่วงเวลาจำลองการประมวลผล (Simulate Network Delay)
-    // สุ่มรอ 1.5 - 3 วินาที ให้เหมือนระบบกำลังหมุนติ้วๆ
-    const delay = Math.floor(Math.random() * 1500) + 1500; 
-    await new Promise(resolve => setTimeout(resolve, delay));
-
-    let status = "FAILED";
-    let message = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
-    let gatewayRef = `ch_${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // จำลอง Transaction ID แบบ Stripe (ch_xxxx)
-
-    // =========================================================
-    // 💳 SCENARIO 1: จ่ายด้วยบัตรเครดิต (Credit Card)
-    // =========================================================
-    if (method === 'CREDIT_CARD') {
-      const cardNumber = cardDetails?.number?.replace(/\s/g, '') || '';
+    // 2. 🛡️ เริ่ม Database Transaction (ถ้าพังจุดไหน ให้ Rollback ทั้งหมด)
+    const result = await prisma.$transaction(async (tx) => {
       
-      // เช็ค Mock Logic
-      if (MOCK_CARDS[cardNumber]) {
-        status = MOCK_CARDS[cardNumber].status;
-        message = MOCK_CARDS[cardNumber].message;
-      } else {
-        // กรณีเลขบัตรมั่วๆ ให้ผ่านแบบ Random (หรือจะให้ผ่านหมดก็ได้ถ้าอยากง่าย)
-        // สมมติ: ถ้าเลขลงท้ายเลขคู่ = ผ่าน, เลขคี่ = ไม่ผ่าน
-        const lastDigit = parseInt(cardNumber.slice(-1));
-        if (!isNaN(lastDigit) && lastDigit % 2 === 0) {
-            status = 'SUCCESS';
-            message = 'ชำระเงินสำเร็จ (Random Approved)';
-        } else {
-            status = 'FAILED';
-            message = 'บัตรไม่ถูกต้อง หรือข้อมูลผิดพลาด';
+      let status = "PENDING";
+      let gatewayRef = `ref_${Date.now()}`;
+      let message = "ดำเนินการไม่สำเร็จ";
+
+      // --- SCENARIO 3: จ่ายด้วย Wallet ---
+      if (method === 'WALLET') {
+        // 3. 🏎️ Atomic Update: เช็คยอดและตัดเงินในคำสั่งเดียว (ป้องกัน Race Condition)
+        const updateResult = await tx.user.updateMany({
+          where: { 
+            id: payerId, 
+            walletBalance: { gte: parseFloat(amount) } // ต้องมีเงิน >= ยอดจ่าย
+          },
+          data: { 
+            walletBalance: { decrement: parseFloat(amount) } 
+          }
+        });
+
+        if (updateResult.count === 0) {
+          throw new Error("ยอดเงินในกระเป๋าไม่เพียงพอ");
         }
-      }
-    }
-
-    // =========================================================
-    // 🏦 SCENARIO 2: โอนเงิน (Bank Transfer / QR PromtPay)
-    // =========================================================
-    else if (method === 'BANK_TRANSFER') {
-      // สมมติว่า Frontend ส่งหลักฐาน หรือกดยืนยันแล้ว
-      status = 'SUCCESS';
-      message = 'แจ้งโอนเงินเรียบร้อย';
-      gatewayRef = `th_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    }
-
-    // =========================================================
-    // 👛 SCENARIO 3: ตัด Wallet (Internal)
-    // =========================================================
-    else if (method === 'WALLET') {
-      if (parseFloat(payer.walletBalance) >= parseFloat(amount)) {
+        
         status = 'SUCCESS';
         message = 'ตัดเงินจากกระเป๋าสำเร็จ';
-        
-        // ตัดเงินทันที
-        await prisma.user.update({
-          where: { id: payerId },
-          data: { walletBalance: { decrement: parseFloat(amount) } }
-        });
-      } else {
-        message = 'ยอดเงินในกระเป๋าไม่เพียงพอ';
-      }
-    }
+      } 
+      // --- SCENARIO 1: จ่ายด้วยบัตรเครดิต (Mock) ---
+      else if (method === 'CREDIT_CARD') {
+        // หน่วงเวลาจำลอง
+        const delay = Math.floor(Math.random() * 1000) + 500; 
+        await new Promise(resolve => setTimeout(resolve, delay));
 
-    // --- ✅ ถ้าสำเร็จ: ดำเนินการต่อ ---
-    if (status === 'SUCCESS') {
-      
-      // 1. เพิ่มเงินให้คนรับ (ถ้ามี)
-      if (receiverId) {
-        await prisma.user.update({
-          where: { id: receiverId },
-          data: { walletBalance: { increment: parseFloat(amount) } }
-        });
+        const cardNumber = cardDetails?.number?.replace(/\s/g, '') || '';
+        if (MOCK_CARDS[cardNumber]) {
+           if(MOCK_CARDS[cardNumber].status !== 'SUCCESS') throw new Error(MOCK_CARDS[cardNumber].message);
+           status = 'SUCCESS';
+           message = MOCK_CARDS[cardNumber].message;
+        } else {
+           // Default Success for Mock random
+           status = 'SUCCESS'; 
+           message = 'ชำระเงินสำเร็จ';
+        }
+      }
+      // --- SCENARIO 2: Bank Transfer ---
+      else if (method === 'BANK_TRANSFER') {
+         status = 'SUCCESS';
+         message = 'แจ้งโอนเงินเรียบร้อย';
       }
 
-      // 2. อัปเดตสถานะงาน (ถ้ามี)
-      if (workId) {
-        await prisma.freelancerWork.update({
+      // 4. 💼 Escrow System: ถ้าจ่ายสำเร็จ เงินจะยังไม่เข้า Freelancer ทันที
+      // แค่อัปเดตสถานะงานให้เริ่มทำได้ (IN_PROGRESS)
+      if (status === 'SUCCESS' && workId) {
+        await tx.freelancerWork.update({
           where: { id: workId },
-          data: { status: "IN_PROGRESS" } // หรือสถานะอื่นตาม Flow
+          data: { status: "IN_PROGRESS" }
         });
       }
-    }
 
-    // --- 📝 บันทึก Transaction ลง DB ---
-    const transaction = await prisma.transaction.create({
-      data: {
-        amount: parseFloat(amount),
-        status: status,
-        method: method,
-        payerId: payerId,
-        receiverId: receiverId || null,
-        workId: workId || null,
-        gatewayRef: gatewayRef
-      }
+      // 5. บันทึก Transaction (ผู้รับ = null เพราะเงินอยู่ที่ระบบกลาง)
+      const transaction = await tx.transaction.create({
+        data: {
+          amount: parseFloat(amount),
+          status: status,
+          method: method,
+          payerId: payerId,
+          receiverId: null, 
+          workId: workId || null,
+          gatewayRef: gatewayRef
+        }
+      });
+
+      return { transaction, message };
     });
 
-    return res.json({ 
-        success: status === 'SUCCESS', 
-        message, 
-        transaction,
-        details: { gatewayRef, method } // ส่งกลับไปโชว์สวยๆ
-    });
+    res.json({ success: true, message: result.message, transaction: result.transaction });
 
   } catch (error) {
     console.error("Payment Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    res.status(400).json({ success: false, message: error.message || "Payment Failed" });
   }
 };
 
-// ✅ ฟังก์ชันถอนเงิน
+// ✅ ฟังก์ชันแจ้งถอนเงิน (เปลี่ยนเป็นระบบรออนุมัติ)
 export const withdraw = async (req, res) => {
-  const { userId, amount, bankAccount } = req.body;
+  const userId = req.user.id; // 🔒 ใช้ Token
+  const { amount, bankAccount } = req.body; 
 
   try {
-    if (!userId || !amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: "ข้อมูลไม่ถูกต้อง" });
-    }
+    if (!amount || amount <= 0) return res.status(400).json({ message: "ยอดเงินไม่ถูกต้อง" });
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+    await prisma.$transaction(async (tx) => {
+      // 1. ตัดเงินทันทีเพื่อ Lock วงเงิน
+      const updateResult = await tx.user.updateMany({
+        where: { 
+           id: userId, 
+           walletBalance: { gte: parseFloat(amount) } 
+        },
+        data: { walletBalance: { decrement: parseFloat(amount) } }
+      });
 
-    if (parseFloat(user.walletBalance) < parseFloat(amount)) {
-      return res.status(400).json({ success: false, message: "ยอดเงินไม่เพียงพอ" });
-    }
-
-    // 1. ตัดเงิน
-    await prisma.user.update({
-      where: { id: userId },
-      data: { walletBalance: { decrement: parseFloat(amount) } }
-    });
-
-    // 2. บันทึก Transaction
-    // สำหรับการถอน เราอาจจะใช้ payerId เป็น user เอง และ receiverId เป็น null (ออกไปข้างนอก)
-    await prisma.transaction.create({
-      data: {
-        amount: parseFloat(amount),
-        status: "SUCCESS", // สมมติว่าสำเร็จทันที
-        method: "BANK_TRANSFER", 
-        payerId: userId,
-        receiverId: null, // เงินออกจากระบบ
-        workId: null,
-        gatewayRef: `WITHDRAW-${Date.now()}`
+      if (updateResult.count === 0) {
+        throw new Error("ยอดเงินไม่เพียงพอสำหรับการถอน");
       }
+
+      // 2. สร้าง Transaction สถานะ PENDING (รอ Admin อนุมัติ)
+      await tx.transaction.create({
+        data: {
+          amount: parseFloat(amount),
+          status: "PENDING", 
+          method: "BANK_TRANSFER", 
+          payerId: userId, // เงินออกจาก User นี้
+          receiverId: null, // ออกนอกระบบ
+          gatewayRef: `WITHDRAW-${Date.now()}`,
+          slipUrl: `Account: ${bankAccount}`,
+          // หมายเหตุ: ควรเก็บ bankAccount ไว้ใน DB ด้วย (ถ้ามี field รองรับ หรือใส่ใน slipUrl/Note ชั่วคราว)
+        }
+      });
     });
 
-    return res.json({ success: true, message: "แจ้งถอนเงินสำเร็จ" });
+    res.json({ success: true, message: "ส่งคำขอถอนเงินแล้ว กรุณารอเจ้าหน้าที่ตรวจสอบ" });
 
   } catch (error) {
-    console.error("Withdraw Error:", error);
-    return res.status(500).json({ message: "Server Error" });
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
-
 export const getMyTransactions = async (req, res) => {
-    // ฟังก์ชันดึงประวัติการจ่ายเงินของ User (ถ้าต้องการ)
-    try {
-        const { userId } = req.params;
-        const transactions = await prisma.transaction.findMany({
-            where: { payerId: userId },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.json(transactions);
-    } catch (error) {
-        res.status(500).json({ message: "Error fetching transactions" });
-    }
+  try {
+      const transactions = await prisma.transaction.findMany({
+          where: { 
+            OR: [
+              { payerId: req.user.id },
+              { receiverId: req.user.id }
+            ]
+          },
+          orderBy: { createdAt: 'desc' }
+      });
+      res.json(transactions);
+  } catch (error) {
+      res.status(500).json({ message: "Error fetching transactions" });
   }
+};

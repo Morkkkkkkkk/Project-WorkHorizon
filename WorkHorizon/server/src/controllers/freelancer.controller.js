@@ -344,7 +344,7 @@ export const createWork = async (req, res, next) => {
 export const updateWorkStatus = async (req, res, next) => {
   try {
     const { workId } = req.params;
-    const { status, comment } = req.body; // status: IN_PROGRESS, SUBMITTED, REVISION_REQUESTED, COMPLETED, DISPUTED
+    const { status } = req.body; 
     const userId = req.user.id;
 
     const work = await prisma.freelancerWork.findUnique({
@@ -366,76 +366,88 @@ export const updateWorkStatus = async (req, res, next) => {
 
     // 1. Accept Offer (Job Seeker Only)
     if (status === "IN_PROGRESS") {
-      if (work.jobSeekerId !== userId)
-        return res
-          .status(403)
-          .json({ error: "Only Job Seeker can accept offer" });
-      if (work.status !== "OFFER_PENDING")
-        return res.status(400).json({ error: "Invalid status transition" });
-
-      systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคางาน "${work.jobTitle}" แล้ว! เริ่มงานได้เลย`;
+       // (Logic เดิม...)
+       if (work.jobSeekerId !== userId) return res.status(403).json({ error: "Only Job Seeker can accept offer" });
+       if (work.status !== "OFFER_PENDING") return res.status(400).json({ error: "Invalid status transition" });
+       systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคาแล้ว เริ่มงานได้เลย`;
     }
 
     // 2. Submit Work (Freelancer Only)
     if (status === "SUBMITTED") {
-      if (work.freelancerId !== userId)
-        return res
-          .status(403)
-          .json({ error: "Only Freelancer can submit work" });
-      if (work.status !== "IN_PROGRESS" && work.status !== "REVISION_REQUESTED")
-        return res.status(400).json({ error: "Invalid status transition" });
-
-      systemMsg = `📦 ${actorName} ได้ส่งงาน "${work.jobTitle}" แล้ว กรุณาตรวจสอบ`;
+        // (Logic เดิม...)
+        if (work.freelancerId !== userId) return res.status(403).json({ error: "Only Freelancer can submit work" });
+        systemMsg = `📦 ${actorName} ได้ส่งงานแล้ว กรุณาตรวจสอบ`;
     }
 
     // 3. Request Revision (Job Seeker Only)
     if (status === "REVISION_REQUESTED") {
-      if (work.jobSeekerId !== userId)
-        return res
-          .status(403)
-          .json({ error: "Only Job Seeker can request revision" });
-      if (work.status !== "SUBMITTED")
-        return res.status(400).json({ error: "Invalid status transition" });
-      updateData.revisionCount = { increment: 1 };
-
-      systemMsg = `📝 ${actorName} ขอให้แก้ไขงาน "${work.jobTitle}"`;
+        // (Logic เดิม...)
+        if (work.jobSeekerId !== userId) return res.status(403).json({ error: "Only Job Seeker can request revision" });
+        updateData.revisionCount = { increment: 1 };
+        systemMsg = `📝 ${actorName} ขอให้แก้ไขงาน`;
     }
 
-    // 4. Complete Work (Job Seeker Only)
+    // 4. Complete Work (Job Seeker Only) -> 💰💰 ปล่อยเงินให้ Freelancer ที่จุดนี้ 💰💰
     if (status === "COMPLETED") {
       if (work.jobSeekerId !== userId)
-        return res
-          .status(403)
-          .json({ error: "Only Job Seeker can approve work" });
-      if (work.status !== "SUBMITTED")
-        return res.status(400).json({ error: "Invalid status transition" });
-      updateData.completedAt = new Date();
+        return res.status(403).json({ error: "Only Job Seeker can approve work" });
+      
+      // ✅ ใช้ Transaction เพื่อความปลอดภัย: จบงาน + โอนเงิน
+      await prisma.$transaction(async (tx) => {
+         // 4.1 อัปเดตสถานะงาน
+         await tx.freelancerWork.update({
+            where: { id: workId },
+            data: { 
+              status: "COMPLETED",
+              completedAt: new Date()
+            }
+         });
 
-      systemMsg = `🎉 ${actorName} ได้อนุมัติงาน "${work.jobTitle}" เรียบร้อยแล้ว!`;
+         // 4.2 โอนเงินเข้า Wallet Freelancer
+         if (work.price && work.price > 0) {
+            await tx.user.update({
+              where: { id: work.freelancerId },
+              data: { walletBalance: { increment: work.price } }
+            });
+
+            // 4.3 สร้าง Transaction Log ว่าเป็นการรับเงิน (Payout)
+            await tx.transaction.create({
+               data: {
+                 amount: work.price,
+                 status: "SUCCESS",
+                 method: "WALLET",
+                 payerId: work.jobSeekerId, // มาจากระบบ (Escrow)
+                 receiverId: work.freelancerId,
+                 workId: workId,
+                 gatewayRef: `PAYOUT-${workId}`
+               }
+            });
+         }
+      });
+
+      // ส่งข้อความแจ้งเตือน (อยู่นอก Transaction หลักได้)
+      await sendSystemMessageToPair(
+        work.freelancerId,
+        work.jobSeekerId,
+        `🎉 ${actorName} อนุมัติงานแล้ว! เงินค่าจ้างถูกโอนเข้า Wallet ของฟรีแลนซ์เรียบร้อย`,
+        userId
+      );
+      
+      return res.json({ message: "Work completed and payment released" });
     }
 
-    // 5. Dispute (Both)
-    if (status === "DISPUTED") {
-      // Allow from any active state
-      systemMsg = `⚠️ ${actorName} ได้เปิดข้อพิพาทสำหรับงาน "${work.jobTitle}"`;
-    }
-
+    // กรณีสถานะอื่นๆ ที่ไม่ใช่ COMPLETED
     const updatedWork = await prisma.freelancerWork.update({
       where: { id: workId },
       data: updateData,
     });
 
-    // Send System Message if applicable
     if (systemMsg) {
-      await sendSystemMessageToPair(
-        work.freelancerId,
-        work.jobSeekerId,
-        systemMsg,
-        userId
-      );
+      await sendSystemMessageToPair(work.freelancerId, work.jobSeekerId, systemMsg, userId);
     }
 
     res.json({ message: "Status updated", work: updatedWork });
+
   } catch (error) {
     next(error);
   }
