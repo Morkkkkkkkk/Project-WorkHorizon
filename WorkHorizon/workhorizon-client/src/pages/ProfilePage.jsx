@@ -62,7 +62,7 @@ const ItemRow = ({ title, subtitle, date, description, onEdit, onDelete, isDelet
       <div className="flex-1 pr-4">
         <h3 className="text-lg font-bold text-slate-800">{title}</h3>
         <p className="text-blue-600 font-medium text-sm mb-1">{subtitle}</p>
-        <p className="text-xs text-slate-400 flex items-center gap-1 mb-2 bg-slate-50 inline-block px-2 py-1 rounded-md">
+        <p className="text-xs text-slate-400  items-center gap-1 mb-2 bg-slate-50 inline-block px-2 py-1 rounded-md">
           <Calendar size={12} /> {date}
         </p>
         {description && <p className="text-slate-600 text-sm leading-relaxed mt-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">{description}</p>}
