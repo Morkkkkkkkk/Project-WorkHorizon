@@ -43,7 +43,7 @@ import Layout from "./components/Layout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 
-import WalletPage from './pages/WalletPage';   // 👈 Import มา
+import WalletPage from './pages/WalletPage';   
 
 function App() {
   return (

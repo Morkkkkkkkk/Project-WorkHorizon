@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, NavLink, Link } from "react-router-dom";
+import { Outlet, NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   LayoutGrid,
@@ -16,77 +16,68 @@ import {
   ChevronLeft,
   ChevronRight,
   Wallet,
+  Menu,
+  Bell,
+  Search
 } from "lucide-react";
 import { BACKEND_URL } from "../api/apiClient.js";
 
-// --- Custom CSS for scrollbar hiding & smooth visuals ---
-const customStyles = `
-  .custom-scroll::-webkit-scrollbar {
-    width: 4px;
-  }
-  .custom-scroll::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.2);
-    border-radius: 10px;
-  }
-  .custom-scroll:hover::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
-  }
-`;
+// --- Components (UI ย่อย) ---
 
-// --- (Component ย่อยสำหรับ Nav Link - Premium Style) ---
+// 1. Menu Item (ปรับให้ดู Premium มี Glow Effect ตอน Active)
 const AdminNavLink = ({ to, icon, label, collapsed }) => (
   <NavLink
     to={to}
     end
     className={({ isActive }) =>
       `
-      relative flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all duration-300 group overflow-hidden
+      relative flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group overflow-hidden
       ${
         isActive
-          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_20px_-5px_rgba(79,70,229,0.4)]"
+          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
           : "text-slate-400 hover:text-slate-100 hover:bg-white/5"
       }
-      ${collapsed ? "justify-center" : ""}
+      ${collapsed ? "justify-center px-2" : ""}
       `
     }
     title={collapsed ? label : ""}
   >
     {({ isActive }) => (
       <>
-        {/* Active Indicator Glow Effect */}
+        {/* Active Background Animation */}
         {isActive && (
-          <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent pointer-events-none opacity-50" />
+          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         )}
-        
-        {/* Icon with smooth scale animation */}
-        <span className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md' : 'group-hover:scale-110 group-hover:text-white'}`}>
+
+        {/* Icon */}
+        <span className={`relative z-10 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}>
           {icon}
         </span>
 
         {/* Label */}
         {!collapsed && (
-          <span className={`relative z-10 font-medium tracking-wide transition-all duration-300 ${isActive ? 'translate-x-1' : 'group-hover:translate-x-1'}`}>
+          <span className="relative z-10 font-medium tracking-wide">
             {label}
           </span>
         )}
 
-        {/* Active Dot Indicator (Right side) */}
+        {/* Active Dot Indicator (จุดเล็กๆ ด้านขวา) */}
         {!collapsed && isActive && (
-          <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] animate-pulse" />
+          <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse" />
         )}
       </>
     )}
   </NavLink>
 );
 
-// --- (Layout หลัก - Admin Dashboard Premium) ---
+// --- Main Layout ---
+
 const AdminLayout = () => {
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const location = useLocation();
 
+  // Helper: Get Image URL
   const getImageUrl = (relativeUrl) => {
     if (!relativeUrl || relativeUrl.startsWith("http")) return relativeUrl;
     return `${BACKEND_URL}${relativeUrl}`;
@@ -95,152 +86,117 @@ const AdminLayout = () => {
   const getProfileInitial = () => user?.firstName?.charAt(0) || "?";
   const profileImageUrl = getImageUrl(user?.profileImageUrl);
 
-  return (
-    <div className="flex min-h-screen bg-[#F0F4F8] font-sans selection:bg-blue-500 selection:text-white" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
-      <style>{customStyles}</style>
+  // Helper: Get Page Title from Path (สำหรับแสดงบน Header)
+  const getPageTitle = () => {
+    const path = location.pathname.split("/")[2]; // e.g. /admin/dashboard -> dashboard
+    switch (path) {
+      case "dashboard": return "ภาพรวมระบบ (Dashboard)";
+      case "verify": return "ตรวจสอบและอนุมัติ";
+      case "users": return "จัดการผู้ใช้งาน";
+      case "jobs": return "จัดการประกาศงาน";
+      case "ads": return "จัดการโฆษณา";
+      case "withdrawals": return "รายการถอนเงิน";
+      default: return "Admin Panel";
+    }
+  };
 
-      {/* 1. Sidebar (Premium Dark Glass) */}
+  return (
+    <div className="flex min-h-screen bg-[#F0F4F8] font-sans text-slate-800">
+      
+      {/* ---------------- Sidebar (Dark Theme Premium) ---------------- */}
       <aside
         className={`
-          ${isCollapsed ? "w-[88px]" : "w-72"}
-          flex-shrink-0 
-          bg-[#0B1120] 
-          text-slate-300
-          flex flex-col 
-          relative 
-          transition-all 
-          duration-500
-          ease-[cubic-bezier(0.25,0.8,0.25,1)]
-          shadow-2xl
-          z-50
-          border-r border-slate-800/50
+          ${isCollapsed ? "w-[90px]" : "w-72"}
+          flex-shrink-0 bg-[#0B1120] text-slate-300 flex flex-col relative transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl z-20
         `}
       >
-        {/* Background Gradient Mesh (Optional Visual Depth) */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-[#0B1120] to-[#050914] pointer-events-none -z-10" />
-
-        {/* Toggle Button (Floating) */}
+        {/* Toggle Button (ปุ่มย่อ/ขยาย ลอยอยู่ขอบ) */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="
-            absolute -right-3.5 top-9 
-            w-7 h-7 
-            bg-slate-800 
-            text-slate-400
-            border border-slate-700 
-            rounded-full 
-            flex items-center justify-center 
-            shadow-[0_0_15px_rgba(0,0,0,0.3)]
-            hover:bg-blue-600 hover:text-white hover:border-blue-500 hover:scale-110
-            transition-all duration-300
-            z-50
-            group
-          "
+          className="absolute -right-3 top-10 w-7 h-7 bg-white text-slate-600 border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-blue-50 hover:text-blue-600 hover:scale-110 transition-all duration-300 z-50"
         >
-          {isCollapsed ? <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" /> : <ChevronLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />}
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
         {/* Logo Section */}
-        <div className={`p-6 mb-2 ${isCollapsed ? "px-4 flex justify-center" : ""}`}>
-          <Link
-            to="/"
-            className="flex items-center gap-3.5 group"
-          >
-            <div className="relative">
-                <div className="absolute inset-0 bg-blue-500 blur-[15px] opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
-                <div className="relative bg-gradient-to-br from-blue-600 to-indigo-700 p-2 rounded-xl shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-300">
-                  <Briefcase className="w-6 h-6 text-white" strokeWidth={2.5} />
-                </div>
+        <div className={`h-24 flex items-center ${isCollapsed ? "justify-center px-0" : "px-8"}`}>
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all duration-300">
+              <Briefcase className="text-white w-6 h-6" strokeWidth={2.5} />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
-                  WorkHorizon
-                </span>
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.2em]">Admin Panel</span>
+                <span className="text-lg font-bold text-white tracking-tight">WorkHorizon</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Admin Panel</span>
               </div>
             )}
           </Link>
         </div>
 
-        {/* MENU LIST */}
-        <div className="flex flex-col gap-8 overflow-y-auto flex-1 px-4 pb-24 custom-scroll">
+        {/* Menu Items (Scrollable) */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-8 custom-scrollbar">
           
-          {/* --- SECTION 1 --- */}
+          {/* Group 1: Main System */}
           <div>
             {!isCollapsed && (
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-4 px-2 select-none">
+              <p className="px-4 mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                 ระบบงานหลัก
               </p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <AdminNavLink to="/admin/dashboard" label="แผงควบคุม" icon={<LayoutGrid size={20} />} collapsed={isCollapsed} />
+            <div className="space-y-1.5">
+              <AdminNavLink to="/admin/dashboard" label="Dashboard" icon={<LayoutGrid size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/verify" label="อนุมัติบริษัท" icon={<ShieldCheck size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/withdrawals" label="รายการถอนเงิน" icon={<Wallet size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/users" label="จัดการผู้ใช้" icon={<Users size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/jobs" label="จัดการงาน" icon={<Package size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/withdrawals" label="การเงิน/ถอนเงิน" icon={<Wallet size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/users" label="ผู้ใช้งาน" icon={<Users size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/jobs" label="ประกาศงาน" icon={<Package size={20} />} collapsed={isCollapsed} />
             </div>
           </div>
 
-          {/* --- SECTION 2 --- */}
+          {/* Group 2: Content Management */}
           <div>
             {!isCollapsed && (
-                <div className="flex items-center gap-2 mb-4 px-2">
-                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest select-none">
-                        จัดการเนื้อหา
-                    </p>
-                    <div className="h-[1px] flex-1 bg-slate-800/50"></div>
-                </div>
+              <p className="px-4 mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                จัดการเนื้อหา
+              </p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <AdminNavLink to="/admin/ads" label="จัดการโฆษณา" icon={<Megaphone size={20} />} collapsed={isCollapsed} />
+            <div className="space-y-1.5">
+              <AdminNavLink to="/admin/ads" label="โฆษณา" icon={<Megaphone size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/main-categories" label="หมวดหมู่หลัก" icon={<Image size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/master-data" label="ข้อมูลย่อย" icon={<Database size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/featured" label="หน้าแรก (Home)" icon={<Star size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/master-data" label="ข้อมูลระบบ (Master)" icon={<Database size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/featured" label="หน้าแรก (Featured)" icon={<Star size={20} />} collapsed={isCollapsed} />
             </div>
           </div>
         </div>
 
-        {/* --- USER PROFILE SECTION (Glassmorphism) --- */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#050914] via-[#0B1120] to-transparent">
-          <div
-            className={`
-              flex items-center gap-3.5
-              p-2.5 
-              rounded-2xl 
-              transition-all duration-300
-              border border-white/5
-              backdrop-blur-md
-              ${isCollapsed ? "justify-center bg-white/5" : "bg-white/5 hover:bg-white/10 hover:border-white/10 hover:shadow-lg hover:shadow-black/20"}
-            `}
-          >
-            {/* Avatar with Status Ring */}
-            <div className="relative flex-shrink-0 group">
-              <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 to-purple-500">
-                  <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center overflow-hidden">
-                    {profileImageUrl ? (
-                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    ) : (
-                        <span className="text-white font-bold text-sm">{getProfileInitial()}</span>
-                    )}
-                  </div>
-              </div>
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#0B1120] rounded-full shadow-sm animate-pulse"></div>
+        {/* Profile Footer */}
+        <div className="p-4 border-t border-slate-800/50 bg-[#0f1629]">
+          <div className={`flex items-center gap-3 p-2 rounded-xl transition-all ${isCollapsed ? "justify-center" : "bg-slate-800/50"}`}>
+            <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 to-purple-500 shadow-lg">
+               <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 border-2 border-slate-900">
+                  {profileImageUrl ? (
+                    <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white font-bold bg-slate-700">
+                      {getProfileInitial()}
+                    </div>
+                  )}
+               </div>
             </div>
-
+            
             {!isCollapsed && (
-              <div className="flex-grow min-w-0">
-                <p className="text-sm font-bold text-slate-100 truncate leading-tight">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-[11px] text-blue-400 font-medium truncate mt-0.5">Admin Superuser</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.firstName} {user?.lastName}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <p className="text-xs text-slate-400">Online</p>
+                </div>
               </div>
             )}
 
             {!isCollapsed && (
-              <button
-                onClick={logout}
-                className="p-2 rounded-xl text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 hover:scale-105 transition-all duration-200"
+              <button 
+                onClick={logout} 
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                 title="ออกจากระบบ"
               >
                 <LogOut size={18} />
@@ -250,16 +206,39 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* 2. Content Area (ขวา) */}
-      <main className="flex-1 relative overflow-hidden h-screen bg-[#F0F4F8]">
-          {/* Decorative background blob */}
-          <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-100/50 to-transparent pointer-events-none -z-0"></div>
+
+      {/* ---------------- Main Content Area ---------------- */}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        {/* Top Header Bar (Glassmorphism) */}
+        <header className="h-20 px-8 flex items-center justify-between bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-10">
           
-          <div className="h-full overflow-y-auto custom-scroll p-6 md:p-8 lg:p-10 relative z-10">
-            <div className="max-w-7xl mx-auto animate-fade-in-up">
-                <Outlet />
-            </div>
+          {/* Title & Breadcrumb */}
+          <div className="flex flex-col">
+             <h1 className="text-xl font-bold text-slate-800 tracking-tight">{getPageTitle()}</h1>
+             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                <span>Admin</span>
+                <ChevronRight size={10} />
+                <span className="text-blue-600 font-medium">{location.pathname.split("/").pop()}</span>
+             </div>
           </div>
+
+          {/* Right Actions */}
+          <div className="flex items-center gap-4">
+             
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#F0F4F8] relative">
+           {/* Background Decoration (Blob) */}
+           <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-50 to-transparent pointer-events-none -z-0"></div>
+
+           <div className="max-w-7xl mx-auto relative z-10 animate-fade-in-up">
+              <Outlet />
+           </div>
+        </div>
+        
       </main>
     </div>
   );
