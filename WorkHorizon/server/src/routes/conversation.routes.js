@@ -16,6 +16,9 @@ router.get("/", getAllConversations);
 // ✅ NEW: DELETE /api/conversations/:convoId - Delete conversation
 router.delete("/:convoId", deleteConversation);
 
+// GET /api/conversations/:convoId (ดึงรายละเอียดแชท)
+router.get("/:convoId", getMessages);
+
 // GET /api/conversations/:convoId/messages (ดึงข้อความ)
 router.get("/:convoId/messages", getMessages);
 

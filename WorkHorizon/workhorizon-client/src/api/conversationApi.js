@@ -1,59 +1,26 @@
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
-/**
- * (Employer or Job Seeker)
- * Get or Create a conversation for a specific application.
- * @param {string} applicationId
- */
-const getConversationByApp = (applicationId) => {
-  return apiClient.get(`/applications/${applicationId}/conversation`);
-};
+const handleResponse = (res) => res.data;
 
-/**
- * (Employer or Job Seeker)
- * Get all messages for a specific conversation.
- * @param {string} conversationId
- */
-const getMessages = (conversationId) => {
-  return apiClient.get(`/conversations/${conversationId}/messages`);
-};
+// ดึงรายการแชททั้งหมด (รวมทั้ง Service และ Job Application)
+const getMyConversations = () => 
+  apiClient.get('/conversations').then(handleResponse);
 
-/**
- * (Employer or Job Seeker)
- * Send a new message.
- * @param {string} conversationId
- * @param {object} data ({ content })
- */
-const sendMessage = (conversationId, data) => {
-  return apiClient.post(`/conversations/${conversationId}/messages`, data);
-};
+// ดึงรายละเอียดแชทและข้อความ
+const getById = (id) => 
+  apiClient.get(`/conversations/${id}`).then(handleResponse);
 
-/**
- * (User - All Roles)
- * Get all conversations for the authenticated user.
- * This endpoint returns all conversations the user is part of,
- * including job application chats and service-related chats.
- * @returns {Promise} Array of conversations with last message preview
- */
-const getAllUserConversations = () => {
-  return apiClient.get("/conversations");
-};
+// ส่งข้อความ
+const sendMessage = (id, content, type = 'SERVICE') => 
+  apiClient.post(`/conversations/${id}/messages`, { content, type }).then(handleResponse);
 
-/**
- * (User - All Roles)
- * Delete a conversation by ID.
- * Note: This may soft-delete on backend (archive) rather than permanent deletion.
- * @param {string} conversationId - The conversation ID to delete
- * @returns {Promise} Success response
- */
-const deleteConversation = (conversationId) => {
-  return apiClient.delete(`/conversations/${conversationId}`);
-};
+// (Optional) อ่านแล้ว
+const markAsRead = (id) => 
+  apiClient.put(`/conversations/${id}/read`).then(handleResponse);
 
 export const conversationApi = {
-  getConversationByApp,
-  getMessages,
+  getMyConversations,
+  getById,
   sendMessage,
-  getAllUserConversations, // ✅ New: Get all user conversations
-  deleteConversation, // ✅ New: Delete conversation
+  markAsRead
 };
