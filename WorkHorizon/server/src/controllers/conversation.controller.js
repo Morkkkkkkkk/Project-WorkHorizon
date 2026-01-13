@@ -158,7 +158,8 @@ export const getMessages = async (req, res) => {
       },
     });
 
-    res.json({ conversation: access.data, messages });
+    res.json({ conversation: { ...access.data, type: access.type }, // เพิ่ม type ตรงนี้
+        messages });
   } catch (error) {
     // ✅ Log full details of the crash
     console.error("❌ CRITICAL CHAT CRASH:", error);

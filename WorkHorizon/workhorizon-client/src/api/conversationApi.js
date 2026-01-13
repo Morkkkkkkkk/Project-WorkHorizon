@@ -1,26 +1,63 @@
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 const handleResponse = (res) => res.data;
 
-// ดึงรายการแชททั้งหมด (รวมทั้ง Service และ Job Application)
-const getMyConversations = () => 
-  apiClient.get('/conversations').then(handleResponse);
+/**
+ * (Employer or Job Seeker)
+ * Get or Create a conversation for a specific application.
+ */
+const getConversationByApp = (applicationId) => {
+  return apiClient.get(`/applications/${applicationId}/conversation`).then(handleResponse);
+};
 
-// ดึงรายละเอียดแชทและข้อความ
-const getById = (id) => 
-  apiClient.get(`/conversations/${id}`).then(handleResponse);
+/**
+ * (Employer or Job Seeker)
+ * Get all messages for a specific conversation.
+ * (ฟังก์ชันนี้อาจจะซ้ำกับ getById แต่เก็บไว้เผื่อส่วนอื่นใช้)
+ */
+const getMessages = (conversationId) => {
+  return apiClient.get(`/conversations/${conversationId}/messages`).then(handleResponse);
+};
 
-// ส่งข้อความ
-const sendMessage = (id, content, type = 'SERVICE') => 
-  apiClient.post(`/conversations/${id}/messages`, { content, type }).then(handleResponse);
+/**
+ * ✅ เพิ่มฟังก์ชันนี้: สำหรับดึงรายละเอียดแชทโดยใช้ ID
+ * (ใช้ Endpoint เดียวกับที่แก้ใน Backend router.get("/:convoId", ...))
+ */
+const getById = (conversationId) => {
+  return apiClient.get(`/conversations/${conversationId}`).then(handleResponse);
+};
 
-// (Optional) อ่านแล้ว
-const markAsRead = (id) => 
-  apiClient.put(`/conversations/${id}/read`).then(handleResponse);
+/**
+ * (Employer or Job Seeker)
+ * Send a new message.
+ */
+const sendMessage = (conversationId, data) => {
+  // รองรับทั้งแบบส่ง string หรือ object
+  const payload = typeof data === 'string' ? { content: data } : data;
+  return apiClient.post(`/conversations/${conversationId}/messages`, payload).then(handleResponse);
+};
+
+/**
+ * (User - All Roles)
+ * Get all conversations for the authenticated user.
+ */
+const getMyConversations = () => {
+  return apiClient.get("/conversations").then(handleResponse);
+};
+
+/**
+ * (User - All Roles)
+ * Delete a conversation by ID.
+ */
+const deleteConversation = (conversationId) => {
+  return apiClient.delete(`/conversations/${conversationId}`).then(handleResponse);
+};
 
 export const conversationApi = {
-  getMyConversations,
-  getById,
+  getConversationByApp,
+  getMessages,
+  getById, // ✅ อย่าลืม export ตัวนี้ออกมา
   sendMessage,
-  markAsRead
+  getMyConversations,
+  deleteConversation,
 };

@@ -7,23 +7,29 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }) {
   const { user, refreshAuthUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('card'); // card, qr, wallet
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); // success, error
-  const [errorMsg, setErrorMsg] = useState('');
+  
+  // --- States จัดการการแสดงผลและข้อมูล ---
+  const [activeTab, setActiveTab] = useState('card'); // เก็บสถานะ Tab ที่เลือก (card, qr, wallet)
+  const [loading, setLoading] = useState(false); // สถานะ Loading ขณะรอ API
+  const [result, setResult] = useState(null); // ผลลัพธ์: 'success', 'error', หรือ null
+  const [errorMsg, setErrorMsg] = useState(''); // ข้อความ Error
 
-  // Form State
+  // --- Form States ข้อมูลบัตร ---
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
 
+  // ✅ New State: ป้องกันการกดปุ่มซ้ำ (สำคัญมาก)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ถ้า Modal ปิดอยู่ ไม่ต้องเรนเดอร์
   if (!isOpen) return null;
 
-  const { amount, receiverId, workId, title } = paymentData;
+  const { amount, receiverId, workId, title, serviceId, jobId } = paymentData;
   const isWalletEnough = parseFloat(user?.walletBalance || 0) >= parseFloat(amount);
 
-  // Auto format card number (4-4-4-4)
+  // จัดรูปแบบเลขบัตร (4-4-4-4)
   const handleCardNumChange = (e) => {
     let val = e.target.value.replace(/\D/g, '');
     val = val.substring(0, 16);
@@ -31,7 +37,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
     setCardNumber(val);
   };
 
-  // Auto format Expiry (MM/YY)
+  // จัดรูปแบบวันหมดอายุ (MM/YY)
   const handleExpiryChange = (e) => {
     let val = e.target.value.replace(/\D/g, '');
     if (val.length >= 2) {
@@ -40,12 +46,17 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
     setExpiry(val);
   };
 
+  // --- ฟังก์ชันส่งข้อมูล (เมื่อกดปุ่มชำระเงิน) ---
   const handleSubmit = async () => {
-    setLoading(true);
+    // ✅ 1. ป้องกันการกดซ้ำ: ถ้ากำลังโหลด หรือกำลังส่งข้อมูล ให้หยุดทันที
+    if (isSubmitting || loading) return;
+    
+    setIsSubmitting(true); // ล็อคปุ่ม
+    setLoading(true);      // โชว์ Loading
     setErrorMsg('');
     setResult(null);
 
-    // Map tab to backend method enum
+    // เลือกวิธีจ่ายเงินส่งให้ Backend
     let method = 'CREDIT_CARD';
     if (activeTab === 'qr') method = 'BANK_TRANSFER';
     if (activeTab === 'wallet') method = 'WALLET';
@@ -57,7 +68,9 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
         amount,
         method,
         workId,
-        // ส่งข้อมูลบัตรไปด้วย (ถ้าเป็นแท็บ Card)
+        serviceId, 
+        jobId,
+        // ส่งข้อมูลบัตรเฉพาะตอนเลือก Tab Card
         cardDetails: activeTab === 'card' ? {
             name: cardName,
             number: cardNumber.replace(/\s/g, ''),
@@ -70,21 +83,29 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
 
       if (res.data.success) {
         setResult('success');
-        // ถ้าตัด Wallet ให้ update client state ทันที
+        
+        // ถ้าจ่ายด้วย Wallet ให้ตัดเงินที่หน้าเว็บทันที (UX)
         if (method === 'WALLET') {
             refreshAuthUser({ walletBalance: parseFloat(user.walletBalance) - parseFloat(amount) });
         }
+        
+        // รอ 2 วินาทีให้เห็นหน้า Success แล้วค่อยปิด
         setTimeout(() => {
             onSuccess();
             onClose();
-        }, 2000); // โชว์ Success ค้างไว้ 2 วิ แล้วค่อยปิด
+            setIsSubmitting(false); 
+        }, 2000); 
       } else {
+        // Backend ตอบกลับมาว่าไม่สำเร็จ
         setResult('error');
         setErrorMsg(res.data.message || 'การชำระเงินถูกปฏิเสธ');
+        setIsSubmitting(false); // ปลดล็อคให้ลองใหม่
       }
     } catch (err) {
+      // Error จาก Server/Network (400, 500)
       setResult('error');
-      setErrorMsg('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      setErrorMsg(err.response?.data?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      setIsSubmitting(false); // ปลดล็อคให้ลองใหม่
     } finally {
       setLoading(false);
     }
@@ -102,14 +123,15 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                 </h3>
                 <p className="text-xs text-slate-500">Encrypted by 256-bit SSL (Simulated)</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+            {/* ปุ่มปิด (Disable ตอนกำลังส่งข้อมูล) */}
+            <button onClick={onClose} disabled={isSubmitting} className="p-2 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50">
                 <X size={20} className="text-slate-500"/>
             </button>
         </div>
 
         <div className="flex flex-col md:flex-row h-full">
             
-            {/* --- Left: Summary & Tabs --- */}
+            {/* --- Left Column: สรุปยอดและเมนู --- */}
             <div className="w-full md:w-1/3 bg-slate-50 border-r border-slate-100 p-5 flex flex-col gap-4">
                 <div className="mb-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">ยอดที่ต้องชำระ</p>
@@ -120,18 +142,21 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                 <div className="flex flex-col gap-2">
                     <button 
                         onClick={() => setActiveTab('card')}
+                        disabled={isSubmitting} // ห้ามเปลี่ยน Tab ตอนส่งข้อมูล
                         className={`flex items-center gap-3 p-3 rounded-xl text-sm font-bold transition-all border ${activeTab === 'card' ? 'bg-white border-blue-500 text-blue-600 shadow-sm' : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-100'}`}
                     >
                         <CreditCard size={18} /> Credit Card
                     </button>
                     <button 
                         onClick={() => setActiveTab('qr')}
+                        disabled={isSubmitting}
                         className={`flex items-center gap-3 p-3 rounded-xl text-sm font-bold transition-all border ${activeTab === 'qr' ? 'bg-white border-blue-500 text-blue-600 shadow-sm' : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-100'}`}
                     >
                         <QrCode size={18} /> QR PromptPay
                     </button>
                     <button 
                         onClick={() => setActiveTab('wallet')}
+                        disabled={isSubmitting}
                         className={`flex items-center gap-3 p-3 rounded-xl text-sm font-bold transition-all border ${activeTab === 'wallet' ? 'bg-white border-blue-500 text-blue-600 shadow-sm' : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-100'}`}
                     >
                         <Wallet size={18} /> My Wallet
@@ -139,7 +164,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                 </div>
             </div>
 
-            {/* --- Right: Payment Form --- */}
+            {/* --- Right Column: ฟอร์ม --- */}
             <div className="w-full md:w-2/3 p-6 relative">
                 
                 {/* 1. CREDIT CARD FORM */}
@@ -158,7 +183,6 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-mono"
                                 />
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
-                                    {/* Mock Icons */}
                                     <div className="w-8 h-5 bg-slate-200 rounded"></div>
                                     <div className="w-8 h-5 bg-slate-200 rounded"></div>
                                 </div>
@@ -218,7 +242,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                 {activeTab === 'qr' && (
                     <div className="flex flex-col items-center justify-center h-full space-y-4 animate-in fade-in zoom-in duration-300">
                         <div className="bg-white p-4 rounded-xl border-2 border-slate-100 shadow-sm relative">
-                             {/* Mock QR Code */}
+                             {/* Mock QR Code UI */}
                              <div className="w-40 h-40 bg-slate-900 flex items-center justify-center text-white rounded-lg overflow-hidden relative">
                                 <div className="absolute inset-0 border-8 border-white"></div>
                                 <div className="absolute inset-0 flex items-center justify-center">
@@ -258,7 +282,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                     </div>
                 )}
 
-                {/* --- Loading / Result Overlay --- */}
+                {/* --- Loading Overlay --- */}
                 {loading && (
                     <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
                         <Loader2 size={48} className="text-blue-600 animate-spin mb-4" />
@@ -267,6 +291,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                     </div>
                 )}
 
+                {/* --- Success Result --- */}
                 {result === 'success' && (
                     <div className="absolute inset-0 bg-green-50 flex flex-col items-center justify-center z-20 animate-in zoom-in duration-300">
                         <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200 mb-6">
@@ -277,6 +302,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
                     </div>
                 )}
 
+                {/* --- Error Result --- */}
                 {result === 'error' && (
                     <div className="absolute inset-0 bg-white flex flex-col items-center justify-center z-20 animate-in zoom-in duration-300 px-6 text-center">
                         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
@@ -299,10 +325,11 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
         <div className="bg-white border-t border-slate-100 p-5">
             <button 
                 onClick={handleSubmit}
-                disabled={loading || (activeTab === 'wallet' && !isWalletEnough)}
+                // ✅ Disabled: ถ้ากำลังโหลด, กำลัง submit, หรือเงินไม่พอ (กรณี Wallet)
+                disabled={loading || isSubmitting || (activeTab === 'wallet' && !isWalletEnough)}
                 className={`
                     w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg flex items-center justify-center gap-2 transition-all
-                    ${loading || (activeTab === 'wallet' && !isWalletEnough) 
+                    ${loading || isSubmitting || (activeTab === 'wallet' && !isWalletEnough) 
                         ? 'bg-slate-300 cursor-not-allowed shadow-none' 
                         : 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-200 active:scale-95'
                     }

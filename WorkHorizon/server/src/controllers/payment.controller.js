@@ -9,81 +9,127 @@ const MOCK_CARDS = {
 };
 
 export const processPayment = async (req, res) => {
-  // 1. 🔒 Security: ใช้ ID จาก Token เท่านั้น
   const payerId = req.user.id; 
-  const { amount, method, workId, cardDetails } = req.body;
+  const { amount, method, workId, cardDetails, serviceId, jobId, receiverId } = req.body;
 
   try {
     if (!amount || amount <= 0) return res.status(400).json({ message: "ยอดเงินไม่ถูกต้อง" });
 
-    // 2. 🛡️ เริ่ม Database Transaction (ถ้าพังจุดไหน ให้ Rollback ทั้งหมด)
+    // ------------------------------------------------------------------
+    // 1. เตรียมชื่อ Title (ย้ายขึ้นมาทำก่อน เพื่อใช้เช็คงานซ้ำ)
+    // ------------------------------------------------------------------
+    let workTitle = "งานจ้างทั่วไป"; 
+    if (serviceId) {
+        const service = await prisma.service.findUnique({ where: { id: serviceId }, select: { title: true } });
+        if (service) workTitle = service.title;
+    } else if (jobId) {
+        const job = await prisma.job.findUnique({ where: { id: jobId }, select: { title: true } });
+        if (job) workTitle = job.title;
+    }
+
+    // ------------------------------------------------------------------
+    // 2. เช็คงานซ้ำ (Duplicate Check) - ✅ แก้ไขเงื่อนไขให้ตรงกับ Schema
+    // ------------------------------------------------------------------
+    if (!workId && receiverId) { 
+        const existingWork = await prisma.freelancerWork.findFirst({
+            where: {
+                // ใช้ jobSeekerId แทน employerId
+                jobSeekerId: payerId,       
+                
+                // เช็คว่าจ้างฟรีแลนซ์คนเดิมไหม
+                freelancerId: receiverId,   
+                
+                // เช็คสถานะ
+                status: "IN_PROGRESS",      
+                
+                // ✅ ใช้ Title เช็คแทน serviceId/jobId (เพราะ DB ไม่เก็บ ID)
+                jobTitle: workTitle         
+            }
+        });
+
+        if (existingWork) {
+            return res.status(400).json({ message: "คุณได้จ้างงานนี้ไปแล้ว (ตรวจสอบที่เมนู 'งานที่ฉันจ้าง')" });
+        }
+    }
+
+    // 3. หา Profile ID
+    let freelancerProfileId = null;
+    if (receiverId) {
+        const profile = await prisma.freelancerProfile.findFirst({ where: { userId: receiverId } });
+        if (!profile) return res.status(400).json({ message: "ผู้รับเงินยังไม่ได้ลงทะเบียนโปรไฟล์ฟรีแลนซ์" });
+        freelancerProfileId = profile.id;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       
       let status = "PENDING";
       let gatewayRef = `ref_${Date.now()}`;
       let message = "ดำเนินการไม่สำเร็จ";
 
-      // --- SCENARIO 3: จ่ายด้วย Wallet ---
+      // --- ส่วนตัดเงิน ---
       if (method === 'WALLET') {
-        // 3. 🏎️ Atomic Update: เช็คยอดและตัดเงินในคำสั่งเดียว (ป้องกัน Race Condition)
         const updateResult = await tx.user.updateMany({
-          where: { 
-            id: payerId, 
-            walletBalance: { gte: parseFloat(amount) } // ต้องมีเงิน >= ยอดจ่าย
-          },
-          data: { 
-            walletBalance: { decrement: parseFloat(amount) } 
-          }
+          where: { id: payerId, walletBalance: { gte: parseFloat(amount) } },
+          data: { walletBalance: { decrement: parseFloat(amount) } }
         });
-
-        if (updateResult.count === 0) {
-          throw new Error("ยอดเงินในกระเป๋าไม่เพียงพอ");
-        }
-        
+        if (updateResult.count === 0) throw new Error("ยอดเงินในกระเป๋าไม่เพียงพอ");
         status = 'SUCCESS';
         message = 'ตัดเงินจากกระเป๋าสำเร็จ';
       } 
-      // --- SCENARIO 1: จ่ายด้วยบัตรเครดิต (Mock) ---
       else if (method === 'CREDIT_CARD') {
-        // หน่วงเวลาจำลอง
         const delay = Math.floor(Math.random() * 1000) + 500; 
         await new Promise(resolve => setTimeout(resolve, delay));
-
         const cardNumber = cardDetails?.number?.replace(/\s/g, '') || '';
         if (MOCK_CARDS[cardNumber]) {
            if(MOCK_CARDS[cardNumber].status !== 'SUCCESS') throw new Error(MOCK_CARDS[cardNumber].message);
            status = 'SUCCESS';
            message = MOCK_CARDS[cardNumber].message;
         } else {
-           // Default Success for Mock random
            status = 'SUCCESS'; 
            message = 'ชำระเงินสำเร็จ';
         }
       }
-      // --- SCENARIO 2: Bank Transfer ---
       else if (method === 'BANK_TRANSFER') {
          status = 'SUCCESS';
          message = 'แจ้งโอนเงินเรียบร้อย';
       }
 
-      // 4. 💼 Escrow System: ถ้าจ่ายสำเร็จ เงินจะยังไม่เข้า Freelancer ทันที
-      // แค่อัปเดตสถานะงานให้เริ่มทำได้ (IN_PROGRESS)
-      if (status === 'SUCCESS' && workId) {
-        await tx.freelancerWork.update({
-          where: { id: workId },
-          data: { status: "IN_PROGRESS" }
-        });
+      // --- ส่วนจัดการใบงาน ---
+      let finalWorkId = workId; 
+
+      if (status === 'SUCCESS') {
+          if (finalWorkId) {
+             await tx.freelancerWork.updateMany({
+                where: { id: finalWorkId },
+                data: { status: "IN_PROGRESS" }
+             });
+          } 
+          else if (receiverId && (serviceId || jobId)) {
+             const newWork = await tx.freelancerWork.create({
+                data: {
+                   price: parseFloat(amount),
+                   status: "IN_PROGRESS",
+                   jobTitle: workTitle,
+                   
+                   // Relations
+                   jobSeeker: { connect: { id: payerId } },
+                   freelancer: { connect: { id: receiverId } },
+                   freelancerProfile: { connect: { id: freelancerProfileId } }
+                }
+             });
+             finalWorkId = newWork.id;
+          }
       }
 
-      // 5. บันทึก Transaction (ผู้รับ = null เพราะเงินอยู่ที่ระบบกลาง)
+      // --- สร้าง Transaction ---
       const transaction = await tx.transaction.create({
         data: {
           amount: parseFloat(amount),
           status: status,
           method: method,
           payerId: payerId,
-          receiverId: null, 
-          workId: workId || null,
+          receiverId: receiverId || null, 
+          workId: finalWorkId || null, 
           gatewayRef: gatewayRef
         }
       });
@@ -99,39 +145,30 @@ export const processPayment = async (req, res) => {
   }
 };
 
-// ✅ ฟังก์ชันแจ้งถอนเงิน (เปลี่ยนเป็นระบบรออนุมัติ)
 export const withdraw = async (req, res) => {
-  const userId = req.user.id; // 🔒 ใช้ Token
+  const userId = req.user.id;
   const { amount, bankAccount } = req.body; 
 
   try {
     if (!amount || amount <= 0) return res.status(400).json({ message: "ยอดเงินไม่ถูกต้อง" });
 
     await prisma.$transaction(async (tx) => {
-      // 1. ตัดเงินทันทีเพื่อ Lock วงเงิน
       const updateResult = await tx.user.updateMany({
-        where: { 
-           id: userId, 
-           walletBalance: { gte: parseFloat(amount) } 
-        },
+        where: { id: userId, walletBalance: { gte: parseFloat(amount) } },
         data: { walletBalance: { decrement: parseFloat(amount) } }
       });
 
-      if (updateResult.count === 0) {
-        throw new Error("ยอดเงินไม่เพียงพอสำหรับการถอน");
-      }
+      if (updateResult.count === 0) throw new Error("ยอดเงินไม่เพียงพอสำหรับการถอน");
 
-      // 2. สร้าง Transaction สถานะ PENDING (รอ Admin อนุมัติ)
       await tx.transaction.create({
         data: {
           amount: parseFloat(amount),
           status: "PENDING", 
           method: "BANK_TRANSFER", 
-          payerId: userId, // เงินออกจาก User นี้
-          receiverId: null, // ออกนอกระบบ
+          payerId: userId,
+          receiverId: null,
           gatewayRef: `WITHDRAW-${Date.now()}`,
           slipUrl: `Account: ${bankAccount}`,
-          // หมายเหตุ: ควรเก็บ bankAccount ไว้ใน DB ด้วย (ถ้ามี field รองรับ หรือใส่ใน slipUrl/Note ชั่วคราว)
         }
       });
     });
