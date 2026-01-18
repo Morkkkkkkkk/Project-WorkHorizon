@@ -1,9 +1,11 @@
+// src/pages/AdminUserManagementPage.jsx
 import React, { useState, useMemo } from 'react';
-// import AdminLayout from '../layouts/AdminLayout'; // ❌ ไม่ต้อง import Layout ซ้ำ
 import { useAdminUsers } from '../hooks/useAdminUsers';
 import Pagination from '../components/Pagination';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal'; 
+import UserForm from '../components/UserForm'; // ✅ Import Form
+import { toast } from 'react-toastify';
 import { 
   Search, 
   Trash2, 
@@ -15,21 +17,39 @@ import {
   Shield, 
   Eye, 
   User,
-  ShieldBan // ✅ เพิ่มไอคอนสำหรับปุ่มแบน
+  ShieldBan,
+  Plus, // ✅ เพิ่มไอคอน Plus
+  Edit  // ✅ เพิ่มไอคอน Edit
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { BACKEND_URL } from '../api/apiClient';
 
 const AdminUserManagementPage = () => {
-  const { users, isLoading, error, deleteUser, updateUserStatus } = useAdminUsers();
+  // ✅ เพิ่ม createUser, updateUser, refreshUsers เข้ามาใช้งาน
+  const { 
+    users, 
+    isLoading, 
+    error, 
+    deleteUser, 
+    updateUserStatus, 
+    createUser, 
+    updateUser,
+    refreshUsers 
+  } = useAdminUsers();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('ALL'); 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // State สำหรับ Modal ดูข้อมูล
+  // --- State สำหรับ Modal ดูข้อมูล (View) ---
   const [viewUser, setViewUser] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // --- State สำหรับ Modal ฟอร์ม (Add/Edit) ✅ ---
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null); // null = Create, Object = Edit
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Helper สำหรับรูปภาพ
   const getImageUrl = (relativeUrl) => {
@@ -40,6 +60,7 @@ const AdminUserManagementPage = () => {
 
   // Filter Logic
   const filteredUsers = useMemo(() => {
+    if (!users) return []; // กัน Error กรณี users ยังไม่โหลด
     return users.filter(user => {
       const matchesSearch = 
         user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -62,7 +83,42 @@ const AdminUserManagementPage = () => {
 
   // --- Handlers ---
 
-  // 1. ลบผู้ใช้ (Delete)
+  // 1. เปิด Modal เพิ่มผู้ใช้ ✅
+  const handleAddClick = () => {
+    setEditingUser(null);
+    setIsFormModalOpen(true);
+  };
+
+  // 2. เปิด Modal แก้ไขผู้ใช้ ✅
+  const handleEditClick = (user) => {
+    setEditingUser(user);
+    setIsFormModalOpen(true);
+  };
+
+  // 3. บันทึกข้อมูล (Create / Update) ✅
+  const handleFormSubmit = async (formData) => {
+    setIsSubmitting(true);
+    try {
+      if (editingUser) {
+        // Update
+        await updateUser(editingUser.id, formData);
+        toast.success("อัปเดตข้อมูลผู้ใช้งานเรียบร้อย");
+      } else {
+        // Create
+        await createUser(formData);
+        toast.success("เพิ่มผู้ใช้งานใหม่เรียบร้อย");
+      }
+      setIsFormModalOpen(false);
+      refreshUsers(); // โหลดข้อมูลใหม่
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึก");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 4. ลบผู้ใช้ (Delete)
   const handleDelete = async (userId) => {
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้ใช้?',
@@ -79,11 +135,12 @@ const AdminUserManagementPage = () => {
       const success = await deleteUser(userId);
       if (success) {
         Swal.fire('ลบสำเร็จ!', 'ผู้ใช้ถูกลบออกจากระบบแล้ว', 'success');
+        refreshUsers();
       }
     }
   };
 
-  // 2. ระงับการใช้งาน (Suspend) - เปลี่ยนสถานะเป็น SUSPENDED / ACTIVE
+  // 5. ระงับการใช้งาน (Suspend)
   const handleSuspendToggle = async (user) => {
     const isSuspended = user.status === 'SUSPENDED';
     const newStatus = isSuspended ? 'ACTIVE' : 'SUSPENDED';
@@ -103,14 +160,15 @@ const AdminUserManagementPage = () => {
       const success = await updateUserStatus(user.id, newStatus);
       if (success) {
         Swal.fire('สำเร็จ!', `สถานะถูกเปลี่ยนเป็น ${newStatus} แล้ว`, 'success');
+        refreshUsers();
       }
     }
   };
 
-  // 3. แบนผู้ใช้ (Ban) - เปลี่ยนสถานะเป็น BANNED / ACTIVE
+  // 6. แบนผู้ใช้ (Ban)
   const handleBanToggle = async (user) => {
     const isBanned = user.status === 'BANNED';
-    const newStatus = isBanned ? 'ACTIVE' : 'BANNED'; // ถ้าแบนอยู่ให้ปลดแบน (Active), ถ้ายังไม่แบนให้แบน (Banned)
+    const newStatus = isBanned ? 'ACTIVE' : 'BANNED';
     const actionText = isBanned ? 'ปลดแบนผู้ใช้' : 'แบนผู้ใช้ถาวร';
     
     const result = await Swal.fire({
@@ -127,6 +185,7 @@ const AdminUserManagementPage = () => {
       const success = await updateUserStatus(user.id, newStatus);
       if (success) {
         Swal.fire('สำเร็จ!', `สถานะถูกเปลี่ยนเป็น ${newStatus} แล้ว`, 'success');
+        refreshUsers();
       }
     }
   };
@@ -153,6 +212,15 @@ const AdminUserManagementPage = () => {
               <span className="text-sm font-medium text-slate-600 pl-2">ทั้งหมด:</span>
               <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-sm font-bold">{users.length}</span>
             </div>
+
+            {/* ✅ ปุ่มเพิ่มผู้ใช้งาน */}
+            <button 
+              onClick={handleAddClick}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm font-medium"
+            >
+              <Plus size={18} />
+              เพิ่มผู้ใช้งาน
+            </button>
           </div>
         </div>
 
@@ -255,13 +323,22 @@ const AdminUserManagementPage = () => {
                           <Eye size={18} />
                         </button>
 
-                        {/* 2. ปุ่มระงับ (Suspend) - สีส้ม (แสดงเฉพาะเมื่อยังไม่โดนแบน) */}
+                        {/* ✅ 2. ปุ่มแก้ไข (Edit) */}
+                        <button 
+                          onClick={() => handleEditClick(user)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="แก้ไขข้อมูล"
+                        >
+                          <Edit size={18} />
+                        </button>
+
+                        {/* 3. ปุ่มระงับ (Suspend) */}
                         {user.status !== 'BANNED' && (
                           <button 
                             onClick={() => handleSuspendToggle(user)}
                             className={`p-2 rounded-lg transition-colors ${
                               user.status === 'SUSPENDED'
-                                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100' // ถ้าโดนระงับอยู่ ให้เป็นปุ่ม Active เพื่อปลด
+                                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
                                 : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50'
                             }`}
                             title={user.status === 'SUSPENDED' ? 'ยกเลิกการระงับ' : 'ระงับชั่วคราว'}
@@ -270,7 +347,7 @@ const AdminUserManagementPage = () => {
                           </button>
                         )}
                         
-                        {/* 3. ปุ่มแบน (Ban) - สีแดง (แสดงตลอด หรือเปลี่ยนเป็นปลดแบน) */}
+                        {/* 4. ปุ่มแบน (Ban) */}
                         <button 
                           onClick={() => handleBanToggle(user)}
                           className={`p-2 rounded-lg transition-colors  ${
@@ -283,7 +360,7 @@ const AdminUserManagementPage = () => {
                           {user.status === 'BANNED' ? <UserCheck size={18} /> : <ShieldBan size={18} />}
                         </button>
 
-                        {/* 4. ปุ่มลบ (Delete) */}
+                        {/* 5. ปุ่มลบ (Delete) */}
                         <button 
                           onClick={() => handleDelete(user.id)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -306,7 +383,7 @@ const AdminUserManagementPage = () => {
           />
         </div>
 
-        {/* Modal ดูข้อมูล */}
+        {/* --- Modal ดูข้อมูล (View) --- */}
         <Modal
           isOpen={isViewModalOpen}
           onClose={() => setIsViewModalOpen(false)}
@@ -346,7 +423,6 @@ const AdminUserManagementPage = () => {
                   }`}>
                     {viewUser.role}
                   </span>
-                  {/* แสดงสถานะตัวใหญ่ๆ ใต้ชื่อ */}
                   <div className={`mt-2 text-sm font-bold ${
                     viewUser.status === 'BANNED' ? 'text-red-600' : 
                     viewUser.status === 'SUSPENDED' ? 'text-yellow-600' : 'text-green-600'
@@ -360,7 +436,6 @@ const AdminUserManagementPage = () => {
                   <h4 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">
                     ข้อมูลส่วนตัว
                   </h4>
-                  {/* ... (เหมือนเดิม) ... */}
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                       <div className="p-2 bg-white rounded-lg text-blue-600 shadow-sm">
@@ -428,6 +503,20 @@ const AdminUserManagementPage = () => {
               </div>
             </div>
           )}
+        </Modal>
+
+        {/* ✅ --- Modal ฟอร์ม (Add / Edit) --- */}
+        <Modal
+          isOpen={isFormModalOpen}
+          onClose={() => setIsFormModalOpen(false)}
+          title={editingUser ? "แก้ไขข้อมูลผู้ใช้งาน" : "เพิ่มผู้ใช้งานใหม่"}
+        >
+          <UserForm 
+            initialData={editingUser}
+            onSubmit={handleFormSubmit}
+            onCancel={() => setIsFormModalOpen(false)}
+            isLoading={isSubmitting}
+          />
         </Modal>
 
     </div>

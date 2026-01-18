@@ -397,6 +397,7 @@ CREATE TABLE `Transaction` (
     `slipUrl` VARCHAR(191) NULL,
     `gatewayRef` VARCHAR(191) NULL,
     `method` ENUM('CREDIT_CARD', 'BANK_TRANSFER', 'WALLET') NOT NULL,
+    `type` ENUM('TOPUP', 'PAYMENT', 'WITHDRAWAL') NOT NULL DEFAULT 'PAYMENT',
     `payerId` VARCHAR(191) NOT NULL,
     `workId` VARCHAR(191) NULL,
     `receiverId` VARCHAR(191) NULL,

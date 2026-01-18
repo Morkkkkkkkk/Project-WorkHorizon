@@ -324,6 +324,7 @@ export default function PaymentModal({ isOpen, onClose, paymentData, onSuccess }
         {/* --- Footer Button --- */}
         <div className="bg-white border-t border-slate-100 p-5">
             <button 
+                type="button"
                 onClick={handleSubmit}
                 // ✅ Disabled: ถ้ากำลังโหลด, กำลัง submit, หรือเงินไม่พอ (กรณี Wallet)
                 disabled={loading || isSubmitting || (activeTab === 'wallet' && !isWalletEnough)}

@@ -595,6 +595,9 @@ model Transaction {
 
   method PaymentMethod // 👈 จ่ายด้วยอะไร?
 
+  // ประเภทของธุรกรรม (เติมเงิน, จ่ายค่าจ้าง, ถอนเงิน)
+  type   TransactionType @default(PAYMENT)
+
   // ใครเป็นคนจ่าย
   payer   User   @relation(fields: [payerId], references: [id], onDelete: Cascade)
   payerId String
@@ -623,4 +626,11 @@ enum PaymentMethod {
   CREDIT_CARD
   BANK_TRANSFER
   WALLET
+}
+
+// --- ประเภทของธุรกรรม ---
+enum TransactionType {
+  TOPUP       // เติมเงิน
+  PAYMENT     // จ่ายค่าจ้าง
+  WITHDRAWAL  // ถอนเงิน
 }

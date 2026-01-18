@@ -1,5 +1,6 @@
+// src/components/UserForm.jsx
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Shield, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Shield, Lock, AlertCircle } from 'lucide-react';
 
 /**
  * Form สำหรับ "สร้าง" หรือ "แก้ไข" ผู้ใช้ (โดย Admin)
@@ -38,6 +39,7 @@ const UserForm = ({ onClose, onSubmit, initialData = null, isSubmitting }) => {
     e.preventDefault();
 
     if (isEditMode && !formData.password) {
+      // ถ้าแก้ไขและไม่ได้กรอกรหัสผ่าน ให้ส่งไปแบบไม่มี password
       const { password, ...dataWithoutPassword } = formData;
       onSubmit(dataWithoutPassword, initialData.id);
     } else {
@@ -129,6 +131,7 @@ const UserForm = ({ onClose, onSubmit, initialData = null, isSubmitting }) => {
             >
               <option value="JOB_SEEKER">Job Seeker (ผู้หางาน)</option>
               <option value="EMPLOYER">Employer (ผู้ว่าจ้าง)</option>
+              <option value="FREELANCER">Freelancer (ฟรีแลนซ์)</option> {/* ✅ เพิ่มตรงนี้ครับ */}
               <option value="SUPER_ADMIN">Super Admin (ผู้ดูแลระบบ)</option>
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
@@ -164,7 +167,7 @@ const UserForm = ({ onClose, onSubmit, initialData = null, isSubmitting }) => {
       <div className="flex justify-end pt-6 space-x-3 border-t border-slate-100 mt-6">
         <button
           type="button"
-          onClick={onClose}
+          onClick={onClose} 
           className="px-5 py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors"
         >
           ยกเลิก

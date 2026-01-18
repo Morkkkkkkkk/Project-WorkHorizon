@@ -15,34 +15,34 @@ export const processPayment = async (req, res) => {
   try {
     if (!amount || amount <= 0) return res.status(400).json({ message: "ยอดเงินไม่ถูกต้อง" });
 
+    // ✅ 1. ตรวจสอบว่าเป็น "การเติมเงิน" หรือไม่?
+    // (เงื่อนไข: ผู้จ่าย = ผู้รับ หรือ ไม่ระบุผู้รับแต่ไม่มีงาน)
+    const isTopUp = (payerId === receiverId) || (!receiverId && !workId);
+
     // ------------------------------------------------------------------
-    // 1. เตรียมชื่อ Title (ย้ายขึ้นมาทำก่อน เพื่อใช้เช็คงานซ้ำ)
+    // 2. เตรียมชื่อ Title
     // ------------------------------------------------------------------
-    let workTitle = "งานจ้างทั่วไป"; 
-    if (serviceId) {
-        const service = await prisma.service.findUnique({ where: { id: serviceId }, select: { title: true } });
-        if (service) workTitle = service.title;
-    } else if (jobId) {
-        const job = await prisma.job.findUnique({ where: { id: jobId }, select: { title: true } });
-        if (job) workTitle = job.title;
+    let workTitle = isTopUp ? "เติมเงินเข้ากระเป๋า (Top Up)" : "งานจ้างทั่วไป"; 
+    
+    if (!isTopUp) {
+        if (serviceId) {
+            const service = await prisma.service.findUnique({ where: { id: serviceId }, select: { title: true } });
+            if (service) workTitle = service.title;
+        } else if (jobId) {
+            const job = await prisma.job.findUnique({ where: { id: jobId }, select: { title: true } });
+            if (job) workTitle = job.title;
+        }
     }
 
     // ------------------------------------------------------------------
-    // 2. เช็คงานซ้ำ (Duplicate Check) - ✅ แก้ไขเงื่อนไขให้ตรงกับ Schema
+    // 3. เช็คงานซ้ำ (Duplicate Check) - ข้ามถ้าเป็น Top Up
     // ------------------------------------------------------------------
-    if (!workId && receiverId) { 
+    if (!isTopUp && !workId && receiverId) { 
         const existingWork = await prisma.freelancerWork.findFirst({
             where: {
-                // ใช้ jobSeekerId แทน employerId
                 jobSeekerId: payerId,       
-                
-                // เช็คว่าจ้างฟรีแลนซ์คนเดิมไหม
                 freelancerId: receiverId,   
-                
-                // เช็คสถานะ
                 status: "IN_PROGRESS",      
-                
-                // ✅ ใช้ Title เช็คแทน serviceId/jobId (เพราะ DB ไม่เก็บ ID)
                 jobTitle: workTitle         
             }
         });
@@ -52,11 +52,16 @@ export const processPayment = async (req, res) => {
         }
     }
 
-    // 3. หา Profile ID
+    // ------------------------------------------------------------------
+    // 4. หา Profile ID (✅ แก้ไข: ข้ามถ้าเป็น Top Up)
+    // ------------------------------------------------------------------
     let freelancerProfileId = null;
-    if (receiverId) {
+    if (receiverId && !isTopUp) { // <-- เพิ่ม !isTopUp
         const profile = await prisma.freelancerProfile.findFirst({ where: { userId: receiverId } });
+        
+        // ถ้าเป็นการจ่ายงานจริง ผู้รับต้องมีโปรไฟล์ แต่ถ้าหาไม่เจอให้แจ้งเตือน
         if (!profile) return res.status(400).json({ message: "ผู้รับเงินยังไม่ได้ลงทะเบียนโปรไฟล์ฟรีแลนซ์" });
+        
         freelancerProfileId = profile.id;
     }
 
@@ -80,24 +85,37 @@ export const processPayment = async (req, res) => {
         const delay = Math.floor(Math.random() * 1000) + 500; 
         await new Promise(resolve => setTimeout(resolve, delay));
         const cardNumber = cardDetails?.number?.replace(/\s/g, '') || '';
+        
+        // Mock Card Logic
         if (MOCK_CARDS[cardNumber]) {
            if(MOCK_CARDS[cardNumber].status !== 'SUCCESS') throw new Error(MOCK_CARDS[cardNumber].message);
            status = 'SUCCESS';
            message = MOCK_CARDS[cardNumber].message;
         } else {
+           // Default Success for any other number (Sandbox mode)
            status = 'SUCCESS'; 
            message = 'ชำระเงินสำเร็จ';
         }
       }
       else if (method === 'BANK_TRANSFER') {
-         status = 'SUCCESS';
+         // ปกติ Bank Transfer ต้องรอ Admin approve แต่ใน Demo ให้ Success เลย
+         status = 'SUCCESS'; 
          message = 'แจ้งโอนเงินเรียบร้อย';
       }
 
-      // --- ส่วนจัดการใบงาน ---
+      // ✅ เพิ่ม Logic: ถ้าเป็นการเติมเงิน (Top Up) และสถานะสำเร็จ -> เพิ่มเงินให้ตัวเอง
+      if (isTopUp && status === 'SUCCESS') {
+          await tx.user.update({
+              where: { id: payerId },
+              data: { walletBalance: { increment: parseFloat(amount) } }
+          });
+          message = "เติมเงินเข้ากระเป๋าเรียบร้อย";
+      }
+
+      // --- ส่วนจัดการใบงาน (ข้ามถ้าเป็น Top Up) ---
       let finalWorkId = workId; 
 
-      if (status === 'SUCCESS') {
+      if (!isTopUp && status === 'SUCCESS') {
           if (finalWorkId) {
              await tx.freelancerWork.updateMany({
                 where: { id: finalWorkId },
@@ -110,8 +128,6 @@ export const processPayment = async (req, res) => {
                    price: parseFloat(amount),
                    status: "IN_PROGRESS",
                    jobTitle: workTitle,
-                   
-                   // Relations
                    jobSeeker: { connect: { id: payerId } },
                    freelancer: { connect: { id: receiverId } },
                    freelancerProfile: { connect: { id: freelancerProfileId } }
@@ -128,9 +144,11 @@ export const processPayment = async (req, res) => {
           status: status,
           method: method,
           payerId: payerId,
-          receiverId: receiverId || null, 
+          // ถ้าเติมเงิน receiverId ให้เป็น NULL หรือใส่ ID ตัวเองก็ได้ (แต่ในที่นี้ใส่ NULL เพื่อแยกแยะง่าย)
+          receiverId: isTopUp ? null : receiverId, 
           workId: finalWorkId || null, 
-          gatewayRef: gatewayRef
+          gatewayRef: gatewayRef,
+          type: isTopUp ? 'TOPUP' : 'PAYMENT' // (ถ้า Schema มี field type แนะนำให้ใส่)
         }
       });
 

@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, User, Phone, Briefcase, Building2, PenTool, ArrowRight, ChevronLeft, Sparkles,CheckCircle2 } from 'lucide-react';
+import {
+  Mail, Lock, User, Phone, Briefcase,
+  Building2, PenTool, ArrowRight,
+  ChevronLeft, Sparkles, CheckCircle2
+} from 'lucide-react';
 
 const RegisterPage = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [userType, setUserType] = useState(null); // 'GENERAL' or 'BUSINESS'
+  const [userType, setUserType] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -19,14 +26,8 @@ const RegisterPage = () => {
     role: 'JOB_SEEKER',
   });
 
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const handleChange = (e) =>
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleTypeSelect = (type) => {
     setUserType(type);
@@ -37,212 +38,194 @@ const RegisterPage = () => {
     setStep(2);
   };
 
-  const handleRoleChange = (role) => {
-    setFormData((prev) => ({ ...prev, role }));
+  const handleRoleChange = (role) =>
+    setFormData(prev => ({ ...prev, role }));
+
+  const getPasswordStrength = () => {
+    const pwd = formData.password;
+    if (pwd.length < 8) return 'weak';
+    if (/[A-Z]/.test(pwd) && /\d/.test(pwd)) return 'strong';
+    return 'medium';
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     setIsLoading(true);
+    setError(null);
     try {
       await register(formData);
-      setSuccess('สมัครสมาชิกสำเร็จ! กำลังพาคุณไปหน้าเข้าสู่ระบบ...');
+      setSuccess('สมัครสมาชิกสำเร็จ! กำลังพาไปหน้าเข้าสู่ระบบ');
       setTimeout(() => navigate('/login'), 2500);
     } catch (err) {
-      setError(err.error || 'การสมัครล้มเหลว (อีเมลอาจซ้ำ หรือข้อมูลไม่ครบถ้วน)');
+      setError(err.error || 'สมัครสมาชิกไม่สำเร็จ');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-orange-50 font-sans">
-      {/* Left Side - Hero (Desktop only) */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-3/7 bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/10"></div>
-        <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-transparent"></div>
+    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-orange-50">
 
-        <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 w-full">
+      {/* LEFT HERO */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-orange-500 to-red-600 text-white p-14">
+        <div className="flex flex-col justify-between w-full">
           <div>
-            <Link to="/" className="inline-flex items-center gap-3 text-3xl font-black tracking-tight mb-12 group">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Briefcase className="w-7 h-7" />
-              </div>
-              <span className="bg-gradient-to-r from-white to-orange-100 bg-clip-text text-transparent">
-                WorkHorizon
-              </span>
+            <Link to="/" className="flex items-center gap-3 text-3xl font-black mb-12">
+              <Briefcase className="w-10 h-10" />
+              WorkHorizon
             </Link>
 
-            <h1 className="text-5xl xl:text-6xl font-black leading-tight mb-8">
-              เริ่มต้นเส้นทาง<br />
-              <span className="text-orange-200">อาชีพของคุณวันนี้</span>
+            <h1 className="text-5xl font-black leading-tight mb-6">
+              เริ่มต้นเส้นทาง <br />
+              <span className="text-orange-200">อาชีพของคุณ</span>
             </h1>
-            <p className="text-xl text-orange-100 mb-12 max-w-lg leading-relaxed">
-              เข้าร่วมชุมชนคนทำงานและธุรกิจกว่าแสนราย ที่เชื่อมต่อโอกาสดี ๆ ด้วยเทคโนโลยีทันสมัย
+
+            <p className="text-lg text-orange-100 mb-10 max-w-md">
+              เชื่อมต่อคนทำงาน ธุรกิจ และโอกาสใหม่ ๆ ด้วยแพลตฟอร์มเดียว
             </p>
 
-            <div className="space-y-6">
+            <div className="space-y-5">
               {[
-                { text: "ค้นหางานและฟรีแลนซ์คุณภาพสูง", icon: Sparkles },
-                { text: "ประกาศงานฟรี ไม่มีค่าธรรมเนียมแอบแฝง", icon: Briefcase },
-                { text: "ระบบจัดการโปรเจกต์ครบวงจร", icon: CheckCircle2 }
-              ].map(({ text, icon: Icon }, i) => (
+                'ค้นหางานคุณภาพ',
+                'ประกาศงานฟรี',
+                'จัดการโปรเจกต์ครบวงจร'
+              ].map((text, i) => (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <span className="text-lg font-medium">{text}</span>
+                  <CheckCircle2 />
+                  <span>{text}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="text-orange-200 text-sm">
-            © 2025 WorkHorizon • สร้างอนาคตการทำงานที่ดีกว่า
-          </div>
+          <p className="text-sm text-orange-200">
+            © 2025 WorkHorizon
+          </p>
         </div>
       </div>
 
-      {/* Right Side - Registration Form */}
-      <div className="w-full lg:w-1/2 xl:w-4/7 flex items-center justify-center p-6 sm:p-10">
+      {/* RIGHT FORM */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6">
         <div className="w-full max-w-xl">
 
-          {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-10">
-            <Link to="/" className="inline-flex items-center gap-3 text-3xl font-black">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-orange-500/30">
-                <Briefcase className="w-7 h-7" />
-              </div>
-              <span className="bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                WorkHorizon
-              </span>
-            </Link>
+          {/* STEP INDICATOR */}
+          <div className="flex justify-center gap-3 mb-8">
+            {[1, 2].map(i => (
+              <div
+                key={i}
+                className={`w-3 h-3 rounded-full transition-all ${
+                  step === i ? 'bg-orange-500 scale-125' : 'bg-slate-300'
+                }`}
+              />
+            ))}
           </div>
 
-          {/* Step 1: Choose Account Type */}
+          {/* STEP 1 */}
           {step === 1 && (
             <div className="text-center">
-              <h2 className="text-4xl font-black text-slate-900 mb-4">คุณคือใครใน WorkHorizon?</h2>
-              <p className="text-xl text-slate-600 mb-12">เลือกประเภทบัญชีที่ตรงกับเป้าหมายของคุณ</p>
+              <h2 className="text-4xl font-black mb-4">คุณคือใคร?</h2>
+              <p className="text-slate-600 mb-10">
+                เลือกประเภทบัญชีที่ใช่สำหรับคุณ
+              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Job Seeker */}
-                <button
+              <div className="grid md:grid-cols-2 gap-6">
+                <AccountCard
+                  icon={<User />}
+                  title="ผู้หางาน"
+                  desc="ค้นหางาน สมัครงาน"
+                  color="blue"
                   onClick={() => handleTypeSelect('GENERAL')}
-                  className="group relative bg-white/80 backdrop-blur-xl border border-white/50 rounded-3xl p-8 shadow-xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 cursor-pointer hover:scale-105"
-                >
-                  <div className="mb-6">
-                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                      <User className="w-10 h-10" />
-                    </div>
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 mb-3">ผู้หางาน</h3>
-                  <p className="text-slate-600 leading-relaxed">
-                    สร้างโปรไฟล์ ฝากประวัติ<br />ค้นหางานและสมัครได้ทันที
-                  </p>
-                  <ArrowRight className="w-8 h-8 mx-auto mt-6 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-
-                {/* Business / Freelancer */}
-                <button
+                />
+                <AccountCard
+                  icon={<Building2 />}
+                  title="ธุรกิจ / ฟรีแลนซ์"
+                  desc="ประกาศงาน หาโปรเจกต์"
+                  color="orange"
                   onClick={() => handleTypeSelect('BUSINESS')}
-                  className="group relative bg-white/80 backdrop-blur-xl border border-white/50 rounded-3xl p-8 shadow-xl hover:shadow-2xl hover:shadow-orange-500/20 transition-all duration-500 cursor-pointer hover:scale-105"
-                >
-                  <div className="mb-6">
-                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                      <Building2 className="w-10 h-10" />
-                    </div>
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 mb-3">ธุรกิจ / ฟรีแลนซ์</h3>
-                  <p className="text-slate-600 leading-relaxed">
-                    ประกาศงาน รับสมัคร<br />หรือหาโปรเจกต์ใหม่ ๆ
-                  </p>
-                  <ArrowRight className="w-8 h-8 mx-auto mt-6 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                />
               </div>
 
-              <div className="mt-12 text-center">
-                <p className="text-slate-600 text-lg">
-                  มีบัญชีแล้ว?{' '}
-                  <Link to="/login" className="font-bold text-orange-600 hover:text-orange-700 underline decoration-2">
-                    เข้าสู่ระบบเลย
-                  </Link>
-                </p>
-              </div>
+              <p className="mt-10 text-slate-600">
+                มีบัญชีแล้ว?{' '}
+                <Link to="/login" className="text-orange-600 font-bold underline">
+                  เข้าสู่ระบบ
+                </Link>
+              </p>
             </div>
           )}
 
-          {/* Step 2: Registration Form */}
+          {/* STEP 2 */}
           {step === 2 && (
-            <div>
+            <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-3xl shadow-2xl p-8">
+
               <button
                 onClick={() => setStep(1)}
-                className="mb-8 flex items-center gap-2 text-slate-600 hover:text-orange-600 font-semibold transition-colors"
+                className="flex items-center gap-2 text-slate-600 hover:text-orange-600 mb-6"
               >
-                <ChevronLeft className="w-5 h-5" />
-                ย้อนกลับ
+                <ChevronLeft /> ย้อนกลับ
               </button>
 
-              <div className="text-center mb-10">
-                <h2 className="text-4xl font-black text-slate-900 mb-3">
-                  สมัครสมาชิก{userType === 'GENERAL' ? 'ผู้หางาน' : 'ธุรกิจ/ฟรีแลนซ์'}
-                </h2>
-                <p className="text-xl text-slate-600">กรอกข้อมูลให้ครบถ้วนเพื่อเริ่มใช้งาน</p>
-              </div>
+              <h2 className="text-3xl font-black mb-6 text-center">
+                สมัครสมาชิก
+              </h2>
 
-              {error && (
-                <div className="mb-8 p-5 bg-red-50/80 backdrop-blur border border-red-200 rounded-2xl flex items-center gap-4">
-                  <div className="text-2xl">⚠️</div>
-                  <p className="text-red-700 font-semibold">{error}</p>
+              {error && <Alert type="error" text={error} />}
+              {success && <Alert type="success" text={success} />}
+
+              {userType === 'BUSINESS' && (
+                <div className="flex gap-2 bg-slate-100 p-2 rounded-2xl mb-6">
+                  <RoleButton
+                    active={formData.role === 'EMPLOYER'}
+                    onClick={() => handleRoleChange('EMPLOYER')}
+                    icon={<Building2 />}
+                    text="ผู้ประกอบการ"
+                  />
+                  <RoleButton
+                    active={formData.role === 'FREELANCER'}
+                    onClick={() => handleRoleChange('FREELANCER')}
+                    icon={<PenTool />}
+                    text="ฟรีแลนซ์"
+                  />
                 </div>
               )}
 
-              {success && (
-                <div className="mb-8 p-5 bg-green-50/80 backdrop-blur border border-green-200 rounded-2xl flex items-center gap-4">
-                  <div className="text-2xl">✅</div>
-                  <p className="text-green-700 font-semibold">{success}</p>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <Input label="ชื่อจริง" name="firstName" onChange={handleChange} />
+                  <Input label="นามสกุล" name="lastName" onChange={handleChange} />
                 </div>
-              )}
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Role Switch for Business */}
-                {userType === 'BUSINESS' && (
-                  <div className="p-2 bg-slate-100 rounded-2xl flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleRoleChange('EMPLOYER')}
-                      className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${formData.role === 'EMPLOYER' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-600'}`}
-                    >
-                      <Building2 className="w-5 h-5" /> ผู้ประกอบการ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRoleChange('FREELANCER')}
-                      className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${formData.role === 'FREELANCER' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-600'}`}
-                    >
-                      <PenTool className="w-5 h-5" /> ฟรีแลนซ์
-                    </button>
+                <Input label="อีเมล" type="email" name="email" icon={<Mail />} onChange={handleChange} />
+                <Input label="เบอร์โทร" name="phone" icon={<Phone />} onChange={handleChange} />
+                <Input label="รหัสผ่าน" type="password" name="password" icon={<Lock />} onChange={handleChange} />
+
+                {/* PASSWORD STRENGTH */}
+                {formData.password && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className={`h-2 w-24 rounded-full ${
+                      getPasswordStrength() === 'weak' ? 'bg-red-400'
+                        : getPasswordStrength() === 'medium' ? 'bg-yellow-400'
+                          : 'bg-green-500'
+                    }`} />
+                    <span className="text-slate-600">
+                      {getPasswordStrength() === 'weak' && 'รหัสผ่านอ่อน'}
+                      {getPasswordStrength() === 'medium' && 'รหัสผ่านปานกลาง'}
+                      {getPasswordStrength() === 'strong' && 'รหัสผ่านแข็งแรง'}
+                    </span>
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <InputGroup label="ชื่อจริง" name="firstName" value={formData.firstName} onChange={handleChange} icon={<User />} placeholder="ชื่อจริง" />
-                  <InputGroup label="นามสกุล" name="lastName" value={formData.lastName} onChange={handleChange} icon={<User />} placeholder="นามสกุล" />
-                </div>
-
-                <InputGroup label="อีเมล" type="email" name="email" value={formData.email} onChange={handleChange} icon={<Mail />} placeholder="you@example.com" />
-                <InputGroup label="เบอร์โทรศัพท์" type="tel" name="phone" value={formData.phone} onChange={handleChange} icon={<Phone />} placeholder="08x-xxx-xxxx" />
-                <InputGroup label="รหัสผ่าน" type="password" name="password" value={formData.password} onChange={handleChange} icon={<Lock />} placeholder="อย่างน้อย 8 ตัวอักษร" />
-
                 <button
-                  type="submit"
                   disabled={isLoading || success}
-                  className="w-full py-5 px-6 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold text-lg rounded-2xl shadow-xl shadow-orange-500/30 hover:shadow-2xl hover:shadow-orange-500/40 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-70"
+                  className="w-full py-5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-2xl flex justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition"
                 >
-                  {isLoading ? 'กำลังสร้างบัญชี...' : 'สมัครสมาชิก'}
-                  {!isLoading && !success && <ArrowRight className="w-5 h-5" />}
+                  {isLoading ? 'กำลังสร้างบัญชี...' :
+                    userType === 'GENERAL'
+                      ? 'เริ่มค้นหางานฟรี'
+                      : formData.role === 'EMPLOYER'
+                        ? 'เริ่มประกาศงาน'
+                        : 'เริ่มรับงานฟรีแลนซ์'}
+                  <ArrowRight />
                 </button>
               </form>
             </div>
@@ -253,24 +236,52 @@ const RegisterPage = () => {
   );
 };
 
-// Reusable Input Component (Modern Style)
-const InputGroup = ({ label, type = "text", name, value, onChange, icon, placeholder }) => (
+/* ---------- COMPONENTS ---------- */
+
+const Input = ({ label, icon, ...props }) => (
   <div>
-    <label className="block text-sm font-bold text-slate-700 mb-2">{label}</label>
+    <label className="text-sm font-bold text-slate-700 mb-2 block">{label}</label>
     <div className="relative">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400">
-        {icon}
-      </div>
+      {icon && <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>}
       <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
+        {...props}
         required
-        placeholder={placeholder}
-        className="w-full pl-12 pr-5 py-4 bg-white/70 backdrop-blur border border-slate-200 rounded-2xl focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all text-base"
+        className="w-full pl-12 pr-5 py-4 bg-white/80 border border-slate-200 rounded-2xl focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition"
       />
     </div>
+  </div>
+);
+
+const AccountCard = ({ icon, title, desc, onClick }) => (
+  <button
+    onClick={onClick}
+    className="p-8 bg-white/80 border rounded-3xl shadow-xl hover:shadow-2xl hover:scale-105 transition text-center"
+  >
+    <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-red-600 text-white rounded-2xl flex items-center justify-center">
+      {icon}
+    </div>
+    <h3 className="text-xl font-black mb-2">{title}</h3>
+    <p className="text-slate-600">{desc}</p>
+  </button>
+);
+
+const RoleButton = ({ active, icon, text, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex-1 py-4 rounded-xl font-bold flex justify-center gap-2 ${
+      active ? 'bg-white shadow-lg' : 'text-slate-600'
+    }`}
+  >
+    {icon} {text}
+  </button>
+);
+
+const Alert = ({ type, text }) => (
+  <div className={`mb-6 p-4 rounded-2xl ${
+    type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+  }`}>
+    {text}
   </div>
 );
 
