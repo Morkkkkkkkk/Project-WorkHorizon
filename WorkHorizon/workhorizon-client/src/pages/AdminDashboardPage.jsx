@@ -2,16 +2,16 @@ import React from 'react';
 import { useAdminStats } from '../hooks/useAdminStats.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import { Link } from 'react-router-dom';
-import { 
-  Users, Briefcase, Building, ShieldAlert, UserPlus, FileText, 
-  ArrowUpRight, RefreshCw, BarChart3, Clock, CheckCircle2 
+import {
+  Users, Briefcase, Building, ShieldAlert, UserPlus, FileText,
+  ArrowUpRight, RefreshCw, BarChart3, Clock, CheckCircle2, Printer
 } from 'lucide-react';
 import { BACKEND_URL } from '../api/apiClient';
 
 // ✅ Import Recharts
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
 } from 'recharts';
 
 // --- Components ย่อย ---
@@ -56,16 +56,24 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="space-y-8 pb-10">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">ภาพรวมระบบ</h1>
           <p className="text-slate-500 mt-1">ข้อมูลสถิติและการดำเนินงานล่าสุดของ WorkHorizon</p>
         </div>
+        <div className="flex gap-3">
         <button onClick={() => refreshStats()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-all shadow-sm">
           <RefreshCw size={18} /> <span>อัปเดตข้อมูล</span>
         </button>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white border border-slate-800 font-medium rounded-xl hover:bg-slate-700 transition-all shadow-sm"
+        >
+          <Printer size={18} /> <span>พิมพ์รายงาน</span>
+        </button>
+        </div>
       </div>
 
       {/* 1. Key Metrics Cards */}
@@ -78,22 +86,22 @@ const AdminDashboardPage = () => {
       {/* 2. Secondary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex items-center justify-between">
-           <div><p className="text-sm text-orange-600 font-bold">รออนุมัติ</p><h4 className="text-2xl font-bold text-orange-800">{stats.pendingVerification}</h4></div>
-           <ShieldAlert className="text-orange-400" size={32} />
+          <div><p className="text-sm text-orange-600 font-bold">รออนุมัติ</p><h4 className="text-2xl font-bold text-orange-800">{stats.pendingVerification}</h4></div>
+          <ShieldAlert className="text-orange-400" size={32} />
         </div>
         <div className="bg-teal-50 border border-teal-100 p-4 rounded-xl flex items-center justify-between">
-           <div><p className="text-sm text-teal-600 font-bold">ผู้ใช้ใหม่ (7 วัน)</p><h4 className="text-2xl font-bold text-teal-800">{stats.newUsers}</h4></div>
-           <UserPlus className="text-teal-400" size={32} />
+          <div><p className="text-sm text-teal-600 font-bold">ผู้ใช้ใหม่ (7 วัน)</p><h4 className="text-2xl font-bold text-teal-800">{stats.newUsers}</h4></div>
+          <UserPlus className="text-teal-400" size={32} />
         </div>
         <div className="bg-pink-50 border border-pink-100 p-4 rounded-xl flex items-center justify-between">
-           <div><p className="text-sm text-pink-600 font-bold">ใบสมัครใหม่ (7 วัน)</p><h4 className="text-2xl font-bold text-pink-800">{stats.newApplications}</h4></div>
-           <FileText className="text-pink-400" size={32} />
+          <div><p className="text-sm text-pink-600 font-bold">ใบสมัครใหม่ (7 วัน)</p><h4 className="text-2xl font-bold text-pink-800">{stats.newApplications}</h4></div>
+          <FileText className="text-pink-400" size={32} />
         </div>
       </div>
 
       {/* 3. Charts Section (เพิ่มความ Professional) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* กราฟสัดส่วนผู้ใช้ */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -114,7 +122,7 @@ const AdminDashboardPage = () => {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -131,7 +139,7 @@ const AdminDashboardPage = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
                 <YAxis axisLine={false} tickLine={false} />
-                <Tooltip cursor={{fill: 'transparent'}} />
+                <Tooltip cursor={{ fill: 'transparent' }} />
                 <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
               </BarChart>
             </ResponsiveContainer>
@@ -164,7 +172,7 @@ const AdminDashboardPage = () => {
                   <td className="px-6 py-4 font-medium text-slate-900">{job.title}</td>
                   <td className="px-6 py-4 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                       {job.company.logoUrl && <img src={`${BACKEND_URL}${job.company.logoUrl}`} className="w-full h-full object-cover" />}
+                      {job.company.logoUrl && <img src={`${BACKEND_URL}${job.company.logoUrl}`} className="w-full h-full object-cover" />}
                     </div>
                     <span className="text-slate-600">{job.company.companyName}</span>
                   </td>
@@ -174,10 +182,9 @@ const AdminDashboardPage = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      job.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' : 
-                      job.status === 'DRAFT' ? 'bg-slate-100 text-slate-700' : 'bg-red-100 text-red-700'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
+                        job.status === 'DRAFT' ? 'bg-slate-100 text-slate-700' : 'bg-red-100 text-red-700'
+                      }`}>
                       {job.status === 'PUBLISHED' && <CheckCircle2 size={12} />}
                       {job.status}
                     </span>

@@ -4,7 +4,7 @@ import { useAdminUsers } from '../hooks/useAdminUsers';
 import Pagination from '../components/Pagination';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal'; 
-import UserForm from '../components/UserForm'; // ✅ Import Form
+import UserForm from '../components/UserForm'; 
 import { toast } from 'react-toastify';
 import { 
   Search, 
@@ -18,14 +18,14 @@ import {
   Eye, 
   User,
   ShieldBan,
-  Plus, // ✅ เพิ่มไอคอน Plus
-  Edit  // ✅ เพิ่มไอคอน Edit
+  Plus, 
+  Edit,
+  FileSpreadsheet // ✅ เพิ่มไอคอนสำหรับ Export
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { BACKEND_URL } from '../api/apiClient';
 
 const AdminUserManagementPage = () => {
-  // ✅ เพิ่ม createUser, updateUser, refreshUsers เข้ามาใช้งาน
   const { 
     users, 
     isLoading, 
@@ -46,7 +46,7 @@ const AdminUserManagementPage = () => {
   const [viewUser, setViewUser] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  // --- State สำหรับ Modal ฟอร์ม (Add/Edit) ✅ ---
+  // --- State สำหรับ Modal ฟอร์ม (Add/Edit) ---
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null); // null = Create, Object = Edit
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,19 +83,69 @@ const AdminUserManagementPage = () => {
 
   // --- Handlers ---
 
-  // 1. เปิด Modal เพิ่มผู้ใช้ ✅
+  // ✅ 1. ฟังก์ชัน Export CSV
+  const handleExportCSV = () => {
+    if (!filteredUsers || filteredUsers.length === 0) {
+      toast.warning("ไม่มีข้อมูลสำหรับส่งออก");
+      return;
+    }
+
+    // 1.1 เตรียม Header
+    const headers = [
+      "User ID", 
+      "First Name", 
+      "Last Name", 
+      "Email", 
+      "Phone",
+      "Role", 
+      "Status", 
+      "Created At"
+    ];
+
+    // 1.2 เตรียม Rows (ใช้ filteredUsers เพื่อให้ตรงกับที่แสดงผลอยู่)
+    const csvRows = [];
+    csvRows.push(headers.join(',')); 
+
+    filteredUsers.forEach(user => {
+      const row = [
+        `"${user.id}"`, 
+        `"${user.firstName || ''}"`,
+        `"${user.lastName || ''}"`,
+        `"${user.email || ''}"`,
+        `"${user.phone || ''}"`,
+        `"${user.role}"`,
+        `"${user.status}"`,
+        `"${new Date(user.createdAt).toLocaleDateString('en-GB')}"` 
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    // 1.3 สร้างไฟล์และสั่ง Download
+    const csvString = "\uFEFF" + csvRows.join('\n'); // BOM สำหรับภาษาไทย
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `users_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 2. เปิด Modal เพิ่มผู้ใช้
   const handleAddClick = () => {
     setEditingUser(null);
     setIsFormModalOpen(true);
   };
 
-  // 2. เปิด Modal แก้ไขผู้ใช้ ✅
+  // 3. เปิด Modal แก้ไขผู้ใช้
   const handleEditClick = (user) => {
     setEditingUser(user);
     setIsFormModalOpen(true);
   };
 
-  // 3. บันทึกข้อมูล (Create / Update) ✅
+  // 4. บันทึกข้อมูล (Create / Update)
   const handleFormSubmit = async (formData) => {
     setIsSubmitting(true);
     try {
@@ -109,7 +159,7 @@ const AdminUserManagementPage = () => {
         toast.success("เพิ่มผู้ใช้งานใหม่เรียบร้อย");
       }
       setIsFormModalOpen(false);
-      refreshUsers(); // โหลดข้อมูลใหม่
+      refreshUsers(); 
     } catch (err) {
       console.error(err);
       toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึก");
@@ -118,7 +168,7 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  // 4. ลบผู้ใช้ (Delete)
+  // 5. ลบผู้ใช้ (Delete)
   const handleDelete = async (userId) => {
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้ใช้?',
@@ -140,7 +190,7 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  // 5. ระงับการใช้งาน (Suspend)
+  // 6. ระงับการใช้งาน (Suspend)
   const handleSuspendToggle = async (user) => {
     const isSuspended = user.status === 'SUSPENDED';
     const newStatus = isSuspended ? 'ACTIVE' : 'SUSPENDED';
@@ -165,7 +215,7 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  // 6. แบนผู้ใช้ (Ban)
+  // 7. แบนผู้ใช้ (Ban)
   const handleBanToggle = async (user) => {
     const isBanned = user.status === 'BANNED';
     const newStatus = isBanned ? 'ACTIVE' : 'BANNED';
@@ -213,7 +263,16 @@ const AdminUserManagementPage = () => {
               <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-sm font-bold">{users.length}</span>
             </div>
 
-            {/* ✅ ปุ่มเพิ่มผู้ใช้งาน */}
+            {/* ✅ ปุ่ม Export CSV */}
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors shadow-sm font-medium"
+            >
+              <FileSpreadsheet size={18} />
+              Export CSV
+            </button>
+
+            {/* ปุ่มเพิ่มผู้ใช้งาน */}
             <button 
               onClick={handleAddClick}
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm font-medium"
@@ -299,7 +358,6 @@ const AdminUserManagementPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {/* Badge สถานะ */}
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         user.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 
                         user.status === 'BANNED' ? 'bg-red-100 text-red-800' : 
@@ -314,7 +372,7 @@ const AdminUserManagementPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
-                        {/* 1. ปุ่มดูข้อมูล (Eye) */}
+                        {/* ดูข้อมูล */}
                         <button 
                           onClick={() => handleViewClick(user)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -323,7 +381,7 @@ const AdminUserManagementPage = () => {
                           <Eye size={18} />
                         </button>
 
-                        {/* ✅ 2. ปุ่มแก้ไข (Edit) */}
+                        {/* แก้ไข */}
                         <button 
                           onClick={() => handleEditClick(user)}
                           className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -332,7 +390,7 @@ const AdminUserManagementPage = () => {
                           <Edit size={18} />
                         </button>
 
-                        {/* 3. ปุ่มระงับ (Suspend) */}
+                        {/* ระงับ */}
                         {user.status !== 'BANNED' && (
                           <button 
                             onClick={() => handleSuspendToggle(user)}
@@ -347,7 +405,7 @@ const AdminUserManagementPage = () => {
                           </button>
                         )}
                         
-                        {/* 4. ปุ่มแบน (Ban) */}
+                        {/* แบน */}
                         <button 
                           onClick={() => handleBanToggle(user)}
                           className={`p-2 rounded-lg transition-colors  ${
@@ -360,7 +418,7 @@ const AdminUserManagementPage = () => {
                           {user.status === 'BANNED' ? <UserCheck size={18} /> : <ShieldBan size={18} />}
                         </button>
 
-                        {/* 5. ปุ่มลบ (Delete) */}
+                        {/* ลบ */}
                         <button 
                           onClick={() => handleDelete(user.id)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -505,7 +563,7 @@ const AdminUserManagementPage = () => {
           )}
         </Modal>
 
-        {/* ✅ --- Modal ฟอร์ม (Add / Edit) --- */}
+        {/* --- Modal ฟอร์ม (Add / Edit) --- */}
         <Modal
           isOpen={isFormModalOpen}
           onClose={() => setIsFormModalOpen(false)}

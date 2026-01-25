@@ -18,7 +18,8 @@ import {
   Wallet,
   Menu,
   Bell,
-  Search
+  Search,
+  MessageSquare
 } from "lucide-react";
 import { BACKEND_URL } from "../api/apiClient.js";
 
@@ -145,6 +146,7 @@ const AdminLayout = () => {
             )}
             <div className="space-y-1.5">
               <AdminNavLink to="/admin/dashboard" label="Dashboard" icon={<LayoutGrid size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/disputes" label="ข้อพิพาท / แจ้งปัญหา" icon={<MessageSquare size={20} />} collapsed={isCollapsed}/>
               <AdminNavLink to="/admin/verify" label="อนุมัติบริษัท" icon={<ShieldCheck size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/withdrawals" label="การเงิน/ถอนเงิน" icon={<Wallet size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/users" label="ผู้ใช้งาน" icon={<Users size={20} />} collapsed={isCollapsed} />

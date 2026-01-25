@@ -200,3 +200,68 @@
 .swiper-pagination-bullet-active {
   @apply w-8 bg-orange-500 rounded-full shadow-lg shadow-orange-500/40 !important;
 }
+
+/* ================================================================= */
+/* ✅ Print / Export PDF Styles 
+/* ================================================================= */
+
+@media print {
+  
+  /* 1. ตั้งค่าหน้ากระดาษ */
+  @page {
+    margin: 10mm; /* ขอบกระดาษ */
+    size: auto;   /* ให้ปรับตามเนื้อหา (หรือระบุ A4 landscape) */
+  }
+
+  /* 2. ซ่อน Scrollbar ทุกจุด (แก้ปัญหา Score bar ติดมา) */
+  * {
+    -ms-overflow-style: none !important; /* IE/Edge */
+    scrollbar-width: none !important;    /* Firefox */
+  }
+  
+  *::-webkit-scrollbar {
+    display: none !important; /* Chrome/Safari */
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  /* 3. ขยายตารางและเนื้อหาให้เต็มหน้า (ไม่ต้องเลื่อน) */
+  html, body, #root, main, .overflow-x-auto, .overflow-y-auto {
+    height: auto !important;
+    width: 100% !important;
+    overflow: visible !important; /* สำคัญ: ปล่อยให้เนื้อหายาวลงมา */
+    position: static !important;
+  }
+
+  /* 4. ซ่อนส่วนประกอบที่ไม่จำเป็นใน PDF */
+  aside,              /* Sidebar เมนูซ้าย */
+  header,             /* Header ด้านบน */
+  button,             /* ปุ่มกดต่างๆ */
+  .no-print,          /* Class สำหรับซ่อนเฉพาะจุด */
+  [role="dialog"],    /* Modal ต่างๆ (ถ้ามีค้างอยู่) */
+  .fixed,             /* องค์ประกอบลอยตัว */
+  .sticky {
+    display: none !important;
+  }
+
+  /* 5. ปรับแต่งตารางให้สวยงาม */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important; /* ลดขนาดตัวอักษรให้พอดี */
+  }
+  
+  th, td {
+    border: 1px solid #ddd !important; /* เพิ่มเส้นตารางให้ชัด */
+    padding: 8px !important;
+    color: #000 !important; /* บังคับตัวอักษรสีดำ */
+  }
+
+  /* 6. ซ่อนพื้นหลังสีเทาของ Admin Layout */
+  div {
+    background-color: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

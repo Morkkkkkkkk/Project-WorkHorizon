@@ -133,19 +133,6 @@ CREATE TABLE `Application` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `FeaturedSection` (
-    `id` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(191) NOT NULL,
-    `sortOrder` INTEGER NOT NULL DEFAULT 0,
-    `mainCategoryId` VARCHAR(191) NOT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `contentType` VARCHAR(191) NOT NULL DEFAULT 'JOB',
-
-    INDEX `FeaturedSection_mainCategoryId_idx`(`mainCategoryId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `Education` (
     `id` VARCHAR(191) NOT NULL,
     `userId` VARCHAR(191) NOT NULL,
@@ -277,18 +264,6 @@ CREATE TABLE `Conversation` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Message` (
-    `id` VARCHAR(191) NOT NULL,
-    `content` TEXT NOT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `conversationId` VARCHAR(191) NULL,
-    `serviceConversationId` VARCHAR(191) NULL,
-    `senderId` VARCHAR(191) NOT NULL,
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `ServiceConversation` (
     `id` VARCHAR(191) NOT NULL,
     `serviceId` VARCHAR(191) NOT NULL,
@@ -298,6 +273,18 @@ CREATE TABLE `ServiceConversation` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `ServiceConversation_serviceId_user1Id_key`(`serviceId`, `user1Id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Message` (
+    `id` VARCHAR(191) NOT NULL,
+    `content` TEXT NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `conversationId` VARCHAR(191) NULL,
+    `serviceConversationId` VARCHAR(191) NULL,
+    `senderId` VARCHAR(191) NOT NULL,
+
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -323,6 +310,19 @@ CREATE TABLE `Advertisement` (
     `adSize` ENUM('LARGE_SLIDE', 'SMALL_BANNER') NOT NULL DEFAULT 'LARGE_SLIDE',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `FeaturedSection` (
+    `id` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(191) NOT NULL,
+    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+    `mainCategoryId` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `contentType` VARCHAR(191) NOT NULL DEFAULT 'JOB',
+
+    INDEX `FeaturedSection_mainCategoryId_idx`(`mainCategoryId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -357,7 +357,7 @@ CREATE TABLE `FreelancerWork` (
     `freelancerProfileId` VARCHAR(191) NOT NULL,
     `jobTitle` VARCHAR(191) NOT NULL,
     `description` TEXT NULL,
-    `status` ENUM('OFFER_PENDING', 'IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'COMPLETED', 'DISPUTED', 'CANCELLED') NOT NULL DEFAULT 'OFFER_PENDING',
+    `status` ENUM('OFFER_PENDING', 'IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'COMPLETED', 'DISPUTED', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'OFFER_PENDING',
     `completedAt` DATETIME(3) NULL,
     `price` DECIMAL(65, 30) NULL,
     `duration` INTEGER NULL,
@@ -408,6 +408,35 @@ CREATE TABLE `Transaction` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `DisputeTicket` (
+    `id` VARCHAR(191) NOT NULL,
+    `ticketNumber` VARCHAR(191) NOT NULL,
+    `workId` VARCHAR(191) NOT NULL,
+    `creatorId` VARCHAR(191) NOT NULL,
+    `reason` VARCHAR(191) NOT NULL,
+    `description` TEXT NOT NULL,
+    `status` ENUM('OPEN', 'IN_PROGRESS', 'RESOLVED_COMPLETED', 'RESOLVED_REFUNDED', 'CLOSED') NOT NULL DEFAULT 'OPEN',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `DisputeTicket_ticketNumber_key`(`ticketNumber`),
+    UNIQUE INDEX `DisputeTicket_workId_key`(`workId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `DisputeMessage` (
+    `id` VARCHAR(191) NOT NULL,
+    `content` TEXT NOT NULL,
+    `fileUrl` VARCHAR(191) NULL,
+    `ticketId` VARCHAR(191) NOT NULL,
+    `senderId` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `_JobSkills` (
     `A` VARCHAR(191) NOT NULL,
     `B` VARCHAR(191) NOT NULL,
@@ -429,7 +458,7 @@ CREATE TABLE `_UserSkills` (
 ALTER TABLE `Company` ADD CONSTRAINT `Company_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Company` ADD CONSTRAINT `Company_industryId_fkey` FOREIGN KEY (`industryId`) REFERENCES `Industry`(`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE `Company` ADD CONSTRAINT `Company_industryId_fkey` FOREIGN KEY (`industryId`) REFERENCES `Industry`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `FreelancerProfile` ADD CONSTRAINT `FreelancerProfile_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -465,16 +494,13 @@ ALTER TABLE `JobDocument` ADD CONSTRAINT `JobDocument_jobId_fkey` FOREIGN KEY (`
 ALTER TABLE `JobImage` ADD CONSTRAINT `JobImage_jobId_fkey` FOREIGN KEY (`jobId`) REFERENCES `Job`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Application` ADD CONSTRAINT `Application_resumeId_fkey` FOREIGN KEY (`resumeId`) REFERENCES `Resume`(`id`) ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE `Application` ADD CONSTRAINT `Application_resumeId_fkey` FOREIGN KEY (`resumeId`) REFERENCES `Resume`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Application` ADD CONSTRAINT `Application_jobId_fkey` FOREIGN KEY (`jobId`) REFERENCES `Job`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Application` ADD CONSTRAINT `Application_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `FeaturedSection` ADD CONSTRAINT `FeaturedSection_mainCategoryId_fkey` FOREIGN KEY (`mainCategoryId`) REFERENCES `MainCategory`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Education` ADD CONSTRAINT `Education_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -501,15 +527,6 @@ ALTER TABLE `SavedJob` ADD CONSTRAINT `SavedJob_jobId_fkey` FOREIGN KEY (`jobId`
 ALTER TABLE `Conversation` ADD CONSTRAINT `Conversation_applicationId_fkey` FOREIGN KEY (`applicationId`) REFERENCES `Application`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Message` ADD CONSTRAINT `Message_conversationId_fkey` FOREIGN KEY (`conversationId`) REFERENCES `Conversation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Message` ADD CONSTRAINT `Message_serviceConversationId_fkey` FOREIGN KEY (`serviceConversationId`) REFERENCES `ServiceConversation`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Message` ADD CONSTRAINT `Message_senderId_fkey` FOREIGN KEY (`senderId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE `ServiceConversation` ADD CONSTRAINT `ServiceConversation_serviceId_fkey` FOREIGN KEY (`serviceId`) REFERENCES `Service`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -519,7 +536,19 @@ ALTER TABLE `ServiceConversation` ADD CONSTRAINT `ServiceConversation_user1Id_fk
 ALTER TABLE `ServiceConversation` ADD CONSTRAINT `ServiceConversation_user2Id_fkey` FOREIGN KEY (`user2Id`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Message` ADD CONSTRAINT `Message_conversationId_fkey` FOREIGN KEY (`conversationId`) REFERENCES `Conversation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Message` ADD CONSTRAINT `Message_serviceConversationId_fkey` FOREIGN KEY (`serviceConversationId`) REFERENCES `ServiceConversation`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Message` ADD CONSTRAINT `Message_senderId_fkey` FOREIGN KEY (`senderId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `Notification` ADD CONSTRAINT `Notification_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `FeaturedSection` ADD CONSTRAINT `FeaturedSection_mainCategoryId_fkey` FOREIGN KEY (`mainCategoryId`) REFERENCES `MainCategory`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `ApplicantRating` ADD CONSTRAINT `ApplicantRating_raterId_fkey` FOREIGN KEY (`raterId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -562,6 +591,18 @@ ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_workId_fkey` FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_receiverId_fkey` FOREIGN KEY (`receiverId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DisputeTicket` ADD CONSTRAINT `DisputeTicket_workId_fkey` FOREIGN KEY (`workId`) REFERENCES `FreelancerWork`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DisputeTicket` ADD CONSTRAINT `DisputeTicket_creatorId_fkey` FOREIGN KEY (`creatorId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DisputeMessage` ADD CONSTRAINT `DisputeMessage_ticketId_fkey` FOREIGN KEY (`ticketId`) REFERENCES `DisputeTicket`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DisputeMessage` ADD CONSTRAINT `DisputeMessage_senderId_fkey` FOREIGN KEY (`senderId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `_JobSkills` ADD CONSTRAINT `_JobSkills_A_fkey` FOREIGN KEY (`A`) REFERENCES `Job`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

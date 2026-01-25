@@ -15,6 +15,7 @@ import freelancerRoutes from "./freelancer.routes.js";
 import serviceRoutes from "./service.routes.js";
 import reviewRoutes from "./review.routes.js"; 
 import paymentRoutes from "./payment.routes.js";
+import disputeRoutes from "./dispute.routes.js";
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.use("/services", serviceRoutes);
 router.use("/reviews", reviewRoutes); 
 
 router.use("/payment", paymentRoutes);
+router.use("/disputes", disputeRoutes);
 
 // Health check
 router.get("/health", (req, res) => {

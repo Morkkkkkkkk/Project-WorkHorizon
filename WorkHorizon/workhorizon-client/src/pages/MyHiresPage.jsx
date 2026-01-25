@@ -2,32 +2,39 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, CheckCircle, Star, Search, MessageSquare, 
-  Clock, Filter, X, ChevronRight, AlertCircle 
-} from 'lucide-react'; // 1. เพิ่ม Icons
-import { Link } from 'react-router-dom';
+  Clock, Filter, X, ChevronRight, AlertCircle, Plus 
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom'; // เพิ่ม useNavigate
 import LoadingSpinner from '../components/LoadingSpinner';
 import { freelancerApi } from '../api/freelancerApi';
 import Modal from '../components/Modal';
 import { toast } from 'react-toastify';
 import PaymentModal from '../components/PaymentModal';
-import { BACKEND_URL } from '../api/apiClient'; // 2. เพิ่ม URL
+import { BACKEND_URL } from '../api/apiClient';
+
+// Import Component แจ้งปัญหา (ต้องมีไฟล์นี้ก่อน)
+import CreateDisputeModal from "../components/CreateDisputeModal"; 
 
 const MyHiresPage = () => {
     const [works, setWorks] = useState([]);
-    const [activeTab, setActiveTab] = useState('ACTIVE'); // เปลี่ยน Default เป็น ACTIVE หรือ ALL ก็ได้
+    const [activeTab, setActiveTab] = useState('ACTIVE');
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 3. เพิ่ม State สำหรับ Slide-over Drawer
+    // State สำหรับ Slide-over Drawer
     const [selectedWork, setSelectedWork] = useState(null);
 
     // Payment & Review States
     const [isPaymentOpen, setIsPaymentOpen] = useState(false);
     const [paymentData, setPaymentData] = useState(null);
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-    const [selectedWorkId, setSelectedWorkId] = useState(null); // เพิ่มกลับมาสำหรับ Review
+    const [selectedWorkId, setSelectedWorkId] = useState(null);
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState('');
+
+    // ✅ Dispute State (เพิ่ม State สำหรับ Modal แจ้งปัญหา)
+    const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchHires();
@@ -45,7 +52,7 @@ const MyHiresPage = () => {
         }
     };
 
-    // ฟังก์ชันจัดการสถานะ (ปรับปรุงให้รองรับ Drawer)
+    // ฟังก์ชันจัดการสถานะ
     const handleStatusUpdate = async (workId, newStatus) => {
         // CASE A: จ่ายเงิน
         if (newStatus === 'IN_PROGRESS') {
@@ -69,7 +76,7 @@ const MyHiresPage = () => {
             await freelancerApi.updateWorkStatus(workId, newStatus);
             toast.success('อัปเดตสถานะเรียบร้อย');
             fetchHires();
-            setSelectedWork(null); // ปิด Drawer หลังทำรายการเสร็จ
+            setSelectedWork(null); 
         } catch (err) {
             toast.error(err.message);
         }
@@ -80,7 +87,7 @@ const MyHiresPage = () => {
         toast.success('ชำระเงินเรียบร้อย เริ่มต้นโปรเจกต์แล้ว! 🚀');
         fetchHires();
         setActiveTab('ACTIVE');
-        setSelectedWork(null); // ปิด Drawer
+        setSelectedWork(null);
     };
 
     // Review Logic
@@ -118,7 +125,6 @@ const MyHiresPage = () => {
         
         if (activeTab === 'ALL') return matchesSearch;
         
-        // จัดกลุ่ม Tab ให้ดูง่ายขึ้น
         if (activeTab === 'ACTIVE') {
             return matchesSearch && ['IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'DISPUTED'].includes(work.status);
         }
@@ -131,7 +137,6 @@ const MyHiresPage = () => {
         return matchesSearch;
     });
 
-    // Helper: Badge สีสวยๆ สำหรับตาราง
     const getStatusBadge = (status) => {
         const styles = {
             'OFFER_PENDING': 'bg-orange-100 text-orange-700',
@@ -139,7 +144,8 @@ const MyHiresPage = () => {
             'SUBMITTED': 'bg-purple-100 text-purple-700',
             'COMPLETED': 'bg-emerald-100 text-emerald-700',
             'REVISION_REQUESTED': 'bg-red-100 text-red-700',
-            'DISPUTED': 'bg-gray-100 text-gray-700'
+            'DISPUTED': 'bg-gray-100 text-gray-700',
+            'REFUNDED': 'bg-slate-200 text-slate-600'
         };
         const labels = {
             'OFFER_PENDING': 'รอตอบรับ',
@@ -147,7 +153,8 @@ const MyHiresPage = () => {
             'SUBMITTED': 'รอตรวจงาน',
             'COMPLETED': 'เสร็จสิ้น',
             'REVISION_REQUESTED': 'ขอแก้ไข',
-            'DISPUTED': 'ข้อพิพาท'
+            'DISPUTED': 'ข้อพิพาท',
+            'REFUNDED': 'คืนเงินแล้ว'
         };
         return (
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
@@ -201,7 +208,7 @@ const MyHiresPage = () => {
                     </div>
                 </div>
 
-                {/* 4. เปลี่ยนเป็น Table View */}
+                {/* Table View */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -255,7 +262,7 @@ const MyHiresPage = () => {
                 </div>
             </div>
 
-            {/* 5. Quick View Drawer (หน้าต่างเลื่อนจากขวา) */}
+            {/* Quick View Drawer */}
             {selectedWork && (
                 <div className="fixed inset-0 z-50 flex justify-end">
                     {/* Backdrop */}
@@ -322,6 +329,53 @@ const MyHiresPage = () => {
                                         </button>
                                     )}
                                 </div>
+
+                                {/* ✅✅✅ ส่วนที่เพิ่มเข้ามา: ปุ่มแจ้งปัญหา (ฝั่ง Job Seeker) ✅✅✅ */}
+                                <div className="mt-4 pt-4 border-t border-slate-200">
+                                    
+                                    {/* 1. ปุ่มแจ้งปัญหา (แสดงเมื่อสถานะยังไม่เสร็จ) */}
+                                    {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
+                                        <div className="text-center">
+                                            <p className="text-xs text-slate-400 mb-2">หากพบปัญหา สามารถแจ้งเจ้าหน้าที่ได้</p>
+                                            <button
+                                                onClick={() => setShowDisputeModal(true)}
+                                                className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto"
+                                            >
+                                                <MessageSquare size={14} /> แจ้งปัญหา / ขอคืนเงิน
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* 2. กรณีมีข้อพิพาทอยู่แล้ว (DISPUTED) */}
+                                    {selectedWork.status === "DISPUTED" && (
+                                        <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-red-100 rounded-full text-red-600">
+                                                    <MessageSquare size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
+                                                    <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่เพื่อหาทางออก</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} 
+                                                className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                                            >
+                                                ไปที่ห้องระงับข้อพิพาท
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* 3. กรณีคืนเงินแล้ว (REFUNDED) */}
+                                    {selectedWork.status === "REFUNDED" && (
+                                        <div className="bg-slate-200 border border-slate-300 p-3 rounded-xl text-center">
+                                            <p className="text-slate-500 font-bold text-sm">🚫 งานนี้ถูกยกเลิกและคืนเงินเรียบร้อยแล้ว</p>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* ✅✅✅ จบส่วนที่เพิ่มเข้ามา ✅✅✅ */}
+
                             </div>
 
                             {/* Chat Link */}
@@ -411,6 +465,19 @@ const MyHiresPage = () => {
                     </div>
                 </form>
             </Modal>
+
+            {/* ✅ Modal แจ้งปัญหา (เพิ่มตรงนี้) */}
+            {showDisputeModal && selectedWork && (
+                <CreateDisputeModal
+                    workId={selectedWork.id}
+                    onClose={() => setShowDisputeModal(false)}
+                    onSuccess={() => {
+                        fetchHires(); 
+                        setShowDisputeModal(false);
+                        setSelectedWork(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

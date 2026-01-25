@@ -4,12 +4,15 @@ import {
   Plus, Briefcase, CheckCircle, Star, User, Calendar, 
   Trash2, Clock, Search, ChevronRight, X, MessageSquare 
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // เพิ่ม useNavigate
 import LoadingSpinner from '../components/LoadingSpinner';
 import { freelancerApi } from '../api/freelancerApi';
 import Modal from '../components/Modal';
 import { toast } from 'react-toastify';
 import { BACKEND_URL } from '../api/apiClient';
+
+// Import Component แจ้งปัญหา (ต้องมีไฟล์นี้ก่อน)
+import CreateDisputeModal from "../components/CreateDisputeModal"; 
 
 const FreelancerWorkPage = () => {
     // ✅ State สำหรับ Works List
@@ -23,6 +26,10 @@ const FreelancerWorkPage = () => {
 
     // ✅ Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    
+    // ✅ Dispute State (เพิ่ม State สำหรับ Modal แจ้งปัญหา)
+    const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const navigate = useNavigate(); // ใช้สำหรับเปลี่ยนหน้าไปห้องแชท
 
     // ✅ Fetch completed works
     useEffect(() => {
@@ -109,7 +116,8 @@ const FreelancerWorkPage = () => {
             'SUBMITTED': 'bg-purple-100 text-purple-700',
             'REVISION_REQUESTED': 'bg-red-100 text-red-700',
             'COMPLETED': 'bg-emerald-100 text-emerald-700',
-            'DISPUTED': 'bg-gray-100 text-gray-700'
+            'DISPUTED': 'bg-gray-100 text-gray-700',
+             'REFUNDED': 'bg-slate-200 text-slate-600'
         };
         const labels = {
             'OFFER_PENDING': 'รอตอบรับ',
@@ -117,7 +125,8 @@ const FreelancerWorkPage = () => {
             'SUBMITTED': 'รอตรวจ',
             'REVISION_REQUESTED': 'ต้องแก้ไข',
             'COMPLETED': 'เสร็จสิ้น',
-            'DISPUTED': 'ข้อพิพาท'
+            'DISPUTED': 'ข้อพิพาท',
+            'REFUNDED': 'คืนเงินแล้ว'
         };
         return (
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
@@ -300,7 +309,55 @@ const FreelancerWorkPage = () => {
                                             <Trash2 size={18} /> ยกเลิก/ลบงาน
                                         </button>
                                     )}
+                                     {/* ✅ ส่วนที่เพิ่มเข้ามา: ปุ่มแจ้งปัญหา และสถานะข้อพิพาท */}
+                                <div className="mt-4 pt-4 border-t border-slate-200">
+                                    
+                                    {/* 1. ปุ่มแจ้งปัญหา (แสดงเมื่อสถานะยังไม่เสร็จสิ้น หรือมีปัญหา) */}
+                                    {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
+                                        <div className="text-center">
+                                            <p className="text-xs text-slate-400 mb-2">หากพบปัญหาในการทำงาน สามารถแจ้งเจ้าหน้าที่ได้</p>
+                                            <button
+                                                onClick={() => setShowDisputeModal(true)}
+                                                className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto"
+                                            >
+                                                <MessageSquare size={14} /> แจ้งปัญหา / ข้อพิพาท
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* 2. กรณีมีข้อพิพาทอยู่แล้ว (DISPUTED) */}
+                                    {selectedWork.status === "DISPUTED" && (
+                                        <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-red-100 rounded-full text-red-600">
+                                                    <MessageSquare size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
+                                                    <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่เพื่อหาทางออก</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} 
+                                                className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                                            >
+                                                ไปที่ห้องระงับข้อพิพาท
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* 3. กรณีคืนเงินแล้ว (REFUNDED) */}
+                                    {selectedWork.status === "REFUNDED" && (
+                                        <div className="bg-slate-200 border border-slate-300 p-3 rounded-xl text-center">
+                                            <p className="text-slate-500 font-bold text-sm">🚫 งานนี้ถูกยกเลิกและคืนเงินเรียบร้อยแล้ว</p>
+                                        </div>
+                                    )}
                                 </div>
+                                {/* ✅ จบส่วนที่เพิ่มเข้ามา */}
+
+                                </div>
+
+                               
                             </div>
 
                             {/* Chat Link */}
@@ -357,6 +414,19 @@ const FreelancerWorkPage = () => {
                     />
                 </div>
             </Modal>
+
+            {/* ✅ Modal แจ้งปัญหา (เพิ่มตรงนี้) */}
+            {showDisputeModal && selectedWork && (
+                <CreateDisputeModal
+                    workId={selectedWork.id}
+                    onClose={() => setShowDisputeModal(false)}
+                    onSuccess={() => {
+                        fetchWorks(); 
+                        setShowDisputeModal(false);
+                        setSelectedWork(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

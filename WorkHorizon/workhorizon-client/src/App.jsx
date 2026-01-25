@@ -30,6 +30,7 @@ import AdminMasterDataPage from './pages/AdminMasterDataPage.jsx';
 import AdminMainCategoriesPage from './pages/AdminMainCategoriesPage.jsx';
 import AdminFeaturedPage from './pages/AdminFeaturedPage.jsx';
 import AdminWithdrawalsPage from './pages/AdminWithdrawalsPage';
+import AdminDisputePage from "./pages/AdminDisputePage.jsx";
 
 import FreelancerProfilePage from "./pages/FreelancerProfilePage.jsx";
 import PublicFreelancerPage from "./pages/PublicFreelancerPage.jsx";
@@ -44,6 +45,8 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 
 import WalletPage from './pages/WalletPage';   
+
+import DisputeChatPage from "./pages/DisputeChatPage";
 
 function App() {
   return (
@@ -91,6 +94,14 @@ function App() {
           element={
             <ProtectedRoute>
               <WalletPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dispute-chat/:ticketId"
+          element={
+            <ProtectedRoute>
+              <DisputeChatPage />
             </ProtectedRoute>
           }
         />
@@ -216,6 +227,7 @@ function App() {
         <Route path="/admin/main-categories" element={<AdminMainCategoriesPage />} />
         <Route path="/admin/featured" element={<AdminFeaturedPage />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
+        <Route path="/admin/disputes" element={<AdminDisputePage />} />
       </Route>
       {/* (จบส่วน Admin) */}
 

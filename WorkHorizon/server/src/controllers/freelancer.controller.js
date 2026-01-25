@@ -45,6 +45,7 @@ export const getMyFreelancerProfile = async (req, res) => {
               },
             },
             review: true,
+            disputeTicket: true,
           },
         },
       },
@@ -244,6 +245,7 @@ export const getMyHires = async (req, res, next) => {
           },
         },
         review: true,
+        disputeTicket: true,
       },
       orderBy: { createdAt: "desc" },
     });
