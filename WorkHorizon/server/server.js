@@ -3,6 +3,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
+import { createServer } from "http"; 
+import { Server } from "socket.io";
+import { setupSocket } from './src/sockets/chatSocket.js';
+
 import allRoutes from './src/routes/index.js';
 import path from 'path'; 
 import { fileURLToPath } from 'url'; 
@@ -10,6 +14,22 @@ import { errorHandler } from './src/middlewares/error.middleware.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// สร้าง HTTP Server จาก Express App
+const httpServer = createServer(app);
+
+// ตั้งค่า Socket.io พร้อมจัดการ CORS ให้ตรงกับ Express
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      'http://localhost:5173',
+      // 'http://49.49.36.238:5173'
+    ],
+    methods: ["GET", "POST"]
+  }
+});
+
+setupSocket(io);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +62,7 @@ app.get("/", (req, res) => res.json({ message: "JobFinder API" }));
 // (ทำให้ URL เช่น /uploads/images/my-image.png ใช้งานได้)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
 // --- Routes ---
 // นำ Route ทั้งหมดมาใช้
 app.use('/api', allRoutes);
@@ -49,6 +70,6 @@ app.use('/api', allRoutes);
 // Error Handling (ตัวอย่าง)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

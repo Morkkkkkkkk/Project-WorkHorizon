@@ -25,6 +25,7 @@
     "react-to-print": "^3.2.0",
     "react-toastify": "^11.0.5",
     "recharts": "^3.6.0",
+    "socket.io-client": "^4.8.3",
     "sweetalert2": "^11.26.3",
     "swiper": "^12.0.3"
   },

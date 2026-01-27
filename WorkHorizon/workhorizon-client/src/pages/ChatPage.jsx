@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
+import { socket } from '../services/socket';
+
 const ChatPage = () => {
   const { id: currentChatId } = useParams();
   const { user } = useAuth();
@@ -129,29 +131,58 @@ const ChatPage = () => {
     setNewMessage('');
   };
 
+  useEffect(() => {
+  if (!currentChatId) return;
+
+  socket.connect();
+  socket.emit("join_room", currentChatId);
+
+  // ✅ ฟังข้อความที่ถูกส่งต่อมาจาก Server
+  socket.on("receive_message", (data) => {
+    setMessages((prev) => {
+      // เช็คซ้ำเพื่อไม่ให้ข้อความเบิ้ล (ถ้าเป็นคนส่งเอง)
+      if (prev.find(m => m.id === data.id)) return prev;
+      return [...prev, data];
+    });
+  });
+
+  return () => {
+    socket.off("receive_message");
+    socket.disconnect();
+  };
+}, [currentChatId]);
+
   // Submit Message Function
-  const submitMessage = async (content, type = 'TEXT') => {
+const submitMessage = async (content, type = 'TEXT') => {
+    // สร้างข้อความชั่วคราว (Optimistic UI)
     const tempMsg = {
-      id: 'temp-' + Date.now(),
-      content: content,
-      senderId: user.id,
-      createdAt: new Date().toISOString(),
-      isSending: true,
-      type: type 
+        id: 'temp-' + Date.now(),
+        content,
+        senderId: user.id,
+        createdAt: new Date().toISOString(),
+        isSending: true,
+        type: type 
     };
     setMessages((prev) => [...prev, tempMsg]);
 
     try {
-      const sentMsg = await conversationApi.sendMessage(currentChatId, content);
-      setMessages((prev) => prev.map(m => m.id === tempMsg.id ? sentMsg : m));
-      return true;
+        // 3. บันทึกลงฐานข้อมูลผ่าน API (Prisma)
+        const sentMsg = await conversationApi.sendMessage(currentChatId, content);
+        
+        // 4. เมื่อบันทึกสำเร็จ ให้ส่งกระจายผ่าน Socket
+        socket.emit("send_message", {
+            ...sentMsg,
+            room: currentChatId // ส่ง ID ห้องเพื่อให้ Server กระจายได้ถูกคน
+        });
+
+        setMessages((prev) => prev.map(m => m.id === tempMsg.id ? sentMsg : m));
+        return true;
     } catch (err) {
-      console.error("Failed to send message:", err);
-      toast.error("ส่งข้อความไม่สำเร็จ");
-      setMessages((prev) => prev.filter(m => m.id !== tempMsg.id));
-      return false;
+        toast.error("ส่งข้อความไม่สำเร็จ");
+        setMessages((prev) => prev.filter(m => m.id !== tempMsg.id));
+        return false;
     }
-  };
+};
 
   // Handle Send Offer
   const handleSendOffer = async () => {

@@ -186,16 +186,8 @@ export const sendMessage = async (req, res) => {
 
     // 2. สร้างข้อความ
     const message = await prisma.message.create({
-      data: {
-        content,
-        senderId: req.user.id,
-        ...relationData, // ใส่ ID ที่ถูกต้อง (และ null ที่เหลือ)
-      },
-      include: {
-        sender: {
-          select: { id: true, firstName: true, profileImageUrl: true },
-        },
-      },
+      data: { content, senderId: req.user.id, ...relationData },
+      include: { sender: { select: { id: true, firstName: true, profileImageUrl: true } } }
     });
 
     // 3. (Bonus) แจ้งเตือนคู่สนทนา (Logic ซับซ้อนขึ้นนิดหน่อย)
