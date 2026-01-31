@@ -15,6 +15,7 @@ import { toast } from 'react-toastify';
 
 import { socket } from '../services/socket';
 import EmojiPicker from 'emoji-picker-react'; // ✅ NEW
+import { freelancerApi } from '../api/freelancerApi';
 
 const ChatPage = () => {
   const { id: currentChatId } = useParams();
@@ -313,6 +314,24 @@ const ChatPage = () => {
     window.location.reload();
   };
 
+  const handleAcceptWork = async (workId) => {
+    try {
+      // อัปเดตสถานะเป็น IN_PROGRESS (กำลังดำเนินการ)
+      await freelancerApi.updateWorkStatus(workId, 'IN_PROGRESS');
+
+      toast.success("ยืนยันรับงานเรียบร้อย! เริ่มดำเนินการได้เลย");
+
+      // ส่งข้อความแจ้งลูกค้าอัตโนมัติ
+      await submitMessage("[SYSTEM] ✅ ฟรีแลนซ์ได้รับยอดเงินและเริ่มงานแล้ว", "SYSTEM");
+
+      // รีโหลดเพื่ออัปเดตสถานะปุ่ม
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      toast.error("เกิดข้อผิดพลาด: " + (err.response?.data?.error || err.message));
+    }
+  };
+
   // Filter Conversations
   const filteredConversations = conversations.filter(chat => {
     const otherUser = getOtherUser(chat);
@@ -442,6 +461,7 @@ const ChatPage = () => {
                   const workStatus = activeChat?.freelancerWork;
                   // ถือว่าจ่ายแล้วถ้า: isPayerPaid เป็นจริง หรือ สถานะงานเดินหน้าไปแล้ว (ไม่ใช่แค่รอรับงาน)
                   const isPaid = workStatus?.isPayerPaid || (workStatus?.status && workStatus?.status !== 'OFFER_PENDING');
+                  const currentStatus = workStatus?.status;
 
                   content = (
                     <div className="w-full max-w-sm">
@@ -460,16 +480,32 @@ const ChatPage = () => {
                         </div>
                         <div className="p-4 pt-0">
                           {isMe ? (
-                            <button disabled className="w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed">
-                              <Clock size={16} /> รอการตอบรับ
-                            </button>
-                          ) : (
-                            isPaid ? (
-                              <button disabled className="w-full py-2.5 bg-slate-100 text-slate-500 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200">
-                                <CheckCheck size={18} className="text-green-500" /> ชำระเงินแล้ว / รออนุมัติ
+                            // ✅ แก้ไขฝั่ง Freelancer (isMe)
+                            (isPaid && currentStatus === 'OFFER_PENDING') ? (
+                              <button
+                                onClick={() => handleAcceptWork(workStatus.id)}
+                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5"
+                              >
+                                <CheckCheck size={18} /> ยืนยันรับงาน / เริ่มงาน
+                              </button>
+                            ) : currentStatus === 'IN_PROGRESS' ? (
+                              <button disabled className="w-full py-2.5 bg-green-50 text-green-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 border border-green-200">
+                                <Briefcase size={18} /> กำลังดำเนินการ
                               </button>
                             ) : (
-                              <button onClick={() => handlePayClick(price)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5">
+                              // กรณีลูกค้ายังไม่จ่าย หรือสถานะอื่น
+                              <button disabled className="w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                                <Clock size={16} /> รอการชำระเงิน
+                              </button>
+                            )
+                          ) : (
+                            // ✅ ฝั่งลูกค้า (Employer) - โค้ดเดิมที่คุณแก้ไปแล้ว
+                            isPaid ? (
+                              <button disabled className="w-full py-2.5 bg-slate-100 text-slate-500 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200">
+                                <CheckCheck size={18} className="text-green-500" /> ชำระเงินแล้ว / รอการตอบรับ
+                              </button>
+                            ) : (
+                              <button onClick={() => handlePayClick(price)} className="...">
                                 <CheckCircle2 size={18} /> จ้างและชำระเงิน
                               </button>
                             )

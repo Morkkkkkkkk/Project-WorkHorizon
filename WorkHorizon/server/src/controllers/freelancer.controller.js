@@ -371,10 +371,22 @@ export const updateWorkStatus = async (req, res, next) => {
 
     // 1. Accept Offer (Job Seeker Only)
     if (status === "IN_PROGRESS") {
-       // (Logic เดิม...)
-       if (work.jobSeekerId !== userId) return res.status(403).json({ error: "Only Job Seeker can accept offer" });
-       if (work.status !== "OFFER_PENDING") return res.status(400).json({ error: "Invalid status transition" });
-       systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคาแล้ว เริ่มงานได้เลย`;
+       // ✅ กรณี 1: Freelancer กดรับงาน (ต้องเช็คว่าลูกค้าจ่ายเงินแล้วหรือยัง)
+       if (work.freelancerId === userId) {
+          if (!work.isPayerPaid) {
+             return res.status(400).json({ error: "ไม่สามารถเริ่มงานได้ เนื่องจากผู้ว่าจ้างยังไม่ได้ชำระเงิน" });
+          }
+          systemMsg = `🚀 ${actorName} ยืนยันรับงานและเริ่มดำเนินการแล้ว`;
+       } 
+       // ✅ กรณี 2: Job Seeker กดรับงาน (Flow ปกติ)
+       else if (work.jobSeekerId === userId) {
+          // ถ้ามี Logic เช็คการจ่ายเงินสำหรับ Job Seeker ก็ใส่ตรงนี้ได้
+          systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคาแล้ว`;
+       } 
+       // ❌ กรณีอื่นๆ: ห้ามเปลี่ยน
+       else {
+          return res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนสถานะนี้" });
+       }
     }
 
     // 2. Submit Work (Freelancer Only)
