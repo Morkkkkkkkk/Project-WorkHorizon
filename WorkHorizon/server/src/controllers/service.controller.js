@@ -109,17 +109,55 @@ export const updateService = async (req, res) => {
 export const deleteService = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
+
+    // 1. เช็คความเป็นเจ้าของ
     const existing = await prisma.service.findFirst({
-        where: { id, freelancerId: req.user.id }
+        where: { id, freelancerId: userId }
     });
     if (!existing) return res.status(403).json({ error: 'Unauthorized' });
 
+    // 2. ลบรูปปกจาก Disk (ถ้ามี)
     if (existing.coverImage) await deleteFileFromDisk(existing.coverImage);
 
-    await prisma.service.delete({ where: { id } });
+    // 3. ใช้ Transaction เพื่อเคลียร์ข้อมูลที่เกี่ยวข้องใน Database ก่อนลบ Service
+    await prisma.$transaction(async (tx) => {
+        
+        // 3.1 หาห้องแชททั้งหมดที่เกี่ยวข้องกับ Service นี้
+        const conversations = await tx.serviceConversation.findMany({
+            where: { serviceId: id },
+            select: { id: true }
+        });
+        
+        const convoIds = conversations.map(c => c.id);
+
+        if (convoIds.length > 0) {
+            // 3.2 ปลดล็อค FreelancerWork ที่ผูกกับแชทเหล่านี้ (Set null)
+            // เพื่อไม่ให้ประวัติการจ้างงานหายไป หรือติด Error
+            await tx.freelancerWork.updateMany({
+                where: { serviceConversationId: { in: convoIds } },
+                data: { serviceConversationId: null } 
+            });
+
+            // 3.3 ลบข้อความ (Message) ในห้องแชทเหล่านั้น
+            await tx.message.deleteMany({
+                where: { serviceConversationId: { in: convoIds } }
+            });
+
+            // 3.4 ลบห้องแชท (ServiceConversation)
+            await tx.serviceConversation.deleteMany({
+                where: { id: { in: convoIds } }
+            });
+        }
+
+        // 3.5 สุดท้าย ลบตัวบริการ (Service)
+        await tx.service.delete({ where: { id } });
+    });
+
     res.status(204).send();
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete service' });
+    console.error("Delete Service Error:", error); // Log Error เพื่อดูสาเหตุชัดเจนขึ้น
+    res.status(500).json({ error: 'Failed to delete service', details: error.message });
   }
 };
 

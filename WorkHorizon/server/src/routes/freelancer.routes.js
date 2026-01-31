@@ -4,13 +4,13 @@ import {
   updateMyFreelancerProfile,
   getPublicFreelancerProfile,
   uploadFreelancerProfilePicture,
-  // ✅ เพิ่ม: API ใหม่สำหรับระบบรีวิว
   createWork,
   getMyHires,
   updateWorkStatus,
   deleteWork,
   submitReview,
-  acceptWorkStart
+  acceptWorkStart,
+  cancelWork,
 } from "../controllers/freelancer.controller.js";
 import {
   authenticateToken,
@@ -56,6 +56,8 @@ router.put("/work/:workId/status", authenticateToken, updateWorkStatus);
 // ✅ API ใหม่: ลบงาน
 router.delete("/work/:workId", authenticateToken, isFreelancer, deleteWork);
 
+// ✅ API: ยกเลิกงาน (สำหรับ Job Seeker)
+router.post("/work/:workId/cancel", authenticateToken, cancelWork);
 // ==========================================
 // 2. Public Routes (Generic Paths)
 // ==========================================

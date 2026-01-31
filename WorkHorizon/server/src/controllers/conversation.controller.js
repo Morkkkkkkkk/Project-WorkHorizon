@@ -39,6 +39,8 @@ const checkConversationAccess = async (convoId, userId) => {
           status: true,
           isPayerPaid: true, // ตัวเช็คว่าจ่ายเงินหรือยัง
           price: true,
+          freelancerId: true, 
+          jobSeekerId: true,
         },
       },
     },

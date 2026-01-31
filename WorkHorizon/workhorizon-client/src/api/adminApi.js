@@ -251,6 +251,26 @@ const approveWithdrawal = (transactionId, action) => {
   return apiClient.patch(`/admin/transactions/${transactionId}/withdraw`, { action }).then(handleResponse);
 };
 
+// =========================================================
+// ✅ ADDED: Payments (การโอนเงินเข้า/ตรวจสลิป)
+// =========================================================
+
+/**
+ * (Admin) ดึงรายการโอนเงินเข้าที่รอตรวจสอบ (PENDING)
+ */
+const getPendingPayments = () => {
+  return apiClient.get("/admin/payments").then(handleResponse);
+};
+
+/**
+ * (Admin) ยืนยันหรือปฏิเสธสลิป
+ * @param {string} transactionId 
+ * @param {string} action ('APPROVE' | 'REJECT')
+ */
+const verifyPayment = (transactionId, action) => {
+  return apiClient.patch(`/admin/payments/${transactionId}/verify`, { action }).then(handleResponse);
+};
+
 // ส่งออก
 export const adminApi = {
 
@@ -301,4 +321,9 @@ export const adminApi = {
 
   getWithdrawalRequests,
   approveWithdrawal,
+
+  // ✅ Payments 
+  getPendingPayments,
+  verifyPayment,
+
 };

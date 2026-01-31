@@ -624,6 +624,7 @@ export const getWithdrawalRequests = async (req, res) => {
         method: "BANK_TRANSFER",
         receiverId: null, // เป็นการถอนเงินออก
         status: "PENDING", // เฉพาะที่รอตรวจสอบ
+        type: "WITHDRAWAL",
       },
       include: {
         payer: {
@@ -708,5 +709,83 @@ export const adminForceStartWork = async (req, res) => {
     res.json({ success: true, message: "Admin บังคับเริ่มงานเรียบร้อย" });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ---------------------------------------------------------
+// 💰 ADMIN: จัดการรายการโอนเงินเข้า (ตรวจสอบสลิป)
+// ---------------------------------------------------------
+
+// GET /api/admin/payments -> ดูรายการโอนเงินเข้าที่รอตรวจสอบ
+export const getPendingPayments = async (req, res) => {
+  try {
+    const payments = await prisma.transaction.findMany({
+      where: {
+        type: "PAYMENT",   // เฉพาะรายการจ่ายค่าจ้าง
+        status: "PENDING", // ที่รอตรวจสอบ
+        type: "PAYMENT"
+      },
+      include: {
+        payer: {
+          select: { id: true, firstName: true, lastName: true, email: true }
+        },
+        work: {
+          select: { id: true, jobTitle: true, price: true }
+        }
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// PATCH /api/admin/payments/:transactionId/verify -> อนุมัติ/ปฏิเสธ สลิป
+export const verifyPaymentSlip = async (req, res) => {
+  const { transactionId } = req.params;
+  const { action } = req.body; // 'APPROVE' หรือ 'REJECT'
+
+  try {
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { work: true } // ดึงข้อมูลงานมาด้วย เพื่อแก้สถานะงาน
+    });
+
+    if (!transaction) return res.status(404).json({ error: "Transaction not found" });
+
+    await prisma.$transaction(async (tx) => {
+      if (action === "APPROVE") {
+        // ✅ 1. สลิปผ่าน: เปลี่ยนสถานะ Transaction เป็น SUCCESS
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: "SUCCESS" }
+        });
+        // (สถานะงานเป็น OFFER_PENDING อยู่แล้วจากตอนแจ้งโอน ไม่ต้องแก้)
+        
+      } else if (action === "REJECT") {
+        // ❌ 2. สลิปไม่ผ่าน/สลิปปลอม:
+        // - เปลี่ยน Transaction เป็น FAILED
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: "FAILED" }
+        });
+        
+        // - ดีดสถานะงานกลับไปเป็น "ยังไม่จ่าย" เพื่อให้ User แนบใหม่
+        if (transaction.workId) {
+          await tx.freelancerWork.update({
+            where: { id: transaction.workId },
+            data: { 
+              isPayerPaid: false, // ปลดล็อกให้จ่ายใหม่
+              // status: "WAITING_PAYMENT" // (ถ้ามีสถานะนี้)
+            }
+          });
+        }
+      }
+    });
+
+    res.json({ message: `Payment ${action}D successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };

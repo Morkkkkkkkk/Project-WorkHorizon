@@ -26,6 +26,8 @@ const io = new Server(httpServer, {
   },
 });
 
+app.set("io", io);
+
 setupSocket(io);
 
 const __filename = fileURLToPath(import.meta.url);

@@ -59,6 +59,14 @@ const getMyHires = () => {
   return apiClient.get("/freelancers/hires").then(handleResponse);
 };
 
+const createWork = (data) => {
+  return apiClient.post('/freelancers/work', data).then(res => res.data);
+};
+
+const cancelWork = (workId) => {
+  return apiClient.post(`/freelancers/work/${workId}/cancel`).then(res => res.data);
+};
+
 export const freelancerApi = {
   getMyProfile,
   updateMyProfile,
@@ -69,6 +77,8 @@ export const freelancerApi = {
   deleteWork,
   submitReview,
   getMyHires,
+  cancelWork,
+  createWork,
 };
 
 // src/api/freelancerApi.js

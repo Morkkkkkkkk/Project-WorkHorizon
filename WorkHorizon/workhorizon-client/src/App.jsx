@@ -31,6 +31,7 @@ import AdminMainCategoriesPage from './pages/AdminMainCategoriesPage.jsx';
 import AdminFeaturedPage from './pages/AdminFeaturedPage.jsx';
 import AdminWithdrawalsPage from './pages/AdminWithdrawalsPage';
 import AdminDisputePage from "./pages/AdminDisputePage.jsx";
+import AdminPaymentCheckPage from './pages/AdminPaymentCheckPage';
 
 import FreelancerProfilePage from "./pages/FreelancerProfilePage.jsx";
 import PublicFreelancerPage from "./pages/PublicFreelancerPage.jsx";
@@ -231,7 +232,8 @@ function App() {
         <Route path="/admin/featured" element={<AdminFeaturedPage />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
         <Route path="/admin/disputes" element={<AdminDisputePage />} />
-        <Route path="/admin/contacts" element={<AdminContactPage />} /> {/* [NEW] */}
+        <Route path="/admin/contacts" element={<AdminContactPage />} /> 
+        <Route path="/admin/payments" element={<AdminPaymentCheckPage />} />
       </Route>
       {/* (จบส่วน Admin) */}
 

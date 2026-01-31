@@ -9,7 +9,7 @@ import {
   Send, Paperclip, Search, MoreVertical, Phone, Video,
   ArrowLeft, CheckCheck, Briefcase, Smile, MessageCircle,
   CreditCard, DollarSign, User as UserIcon, X, Trash2,
-  AlertTriangle, Receipt, CheckCircle2, Clock, Image // ✅ ADDED Image
+  AlertTriangle, Receipt, CheckCircle2, Clock, Image, Package, FileEdit, Trophy, PlayCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -78,6 +78,24 @@ const ChatPage = () => {
     }
   };
 
+  // Helper: Parse Status Message
+  const parseStatusMessage = (content) => {
+    try {
+      // Format: [STATUS:TYPE] Title|Description
+      const typeMatch = content.match(/\[STATUS:(\w+)\]/);
+      const textPart = content.replace(/\[STATUS:\w+\]/, '').trim();
+      const [title, desc] = textPart.split('|');
+      return {
+        type: typeMatch ? typeMatch[1] : 'INFO',
+        title: title || 'แจ้งเตือนสถานะ',
+        desc: desc || '-'
+      };
+    } catch (e) {
+      return { type: 'INFO', title: 'แจ้งเตือน', desc: content };
+    }
+  };
+
+
   // Click Outside to close menu
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -135,11 +153,20 @@ const ChatPage = () => {
       });
     };
 
+    const handleWorkStatusUpdate = (data) => {
+      console.log("Work status updated:", data);
+      // โหลดข้อมูลแชทใหม่ทันที (ปุ่มจะเปลี่ยนสถานะเอง)
+      fetchChatDetails();
+    };
+
     socket.on("receive_message", handleReceiveMessage);
+
+    socket.on("work_status_updated", handleWorkStatusUpdate);
 
     return () => {
       socket.off("receive_message", handleReceiveMessage);
       // Do NOT disconnect socket here, just leave the listeners
+      socket.off("work_status_updated", handleWorkStatusUpdate);
     };
   }, [currentChatId, user.id]);
 
@@ -256,14 +283,43 @@ const ChatPage = () => {
       toast.error("กรุณาระบุราคา");
       return;
     }
-    const offerContent = `[OFFER] เสนอราคา: ฿${Number(offerPrice).toLocaleString()} \nรายละเอียด: ${offerDetail || '-'}`;
 
-    const success = await submitMessage(offerContent);
-    if (success) {
+    try {
+      // ✅ แก้ไขตรงนี้:
+      const workData = {
+        // freelancerId: user.id, // ไม่ต้องส่ง (Backend ดึงจาก Token)
+        
+        jobSeekerId: getOtherUser(activeChat).id,
+        price: parseFloat(offerPrice),
+        
+        // 1. เปลี่ยน title -> jobTitle
+        jobTitle: `เสนอราคา: ${activeChat.serviceTitle || 'จ้างงาน'}`,
+        
+        description: offerDetail || '-',
+        serviceConversationId: currentChatId,
+
+        // 2. เพิ่ม duration (ใส่ค่าเริ่มต้นไปก่อน เช่น 1 วัน หรือ 7 วัน)
+        duration: 7 
+      };
+
+      // เรียก API สร้างงาน
+      await freelancerApi.createWork(workData); 
+
+      // ✅ 2. หลังจากสร้างงานเสร็จ ค่อยส่งข้อความแจ้งเตือน
+      const offerContent = `[OFFER] เสนอราคา: ฿${Number(offerPrice).toLocaleString()} \nรายละเอียด: ${offerDetail || '-'}`;
+      await submitMessage(offerContent);
+      
       setShowOfferModal(false);
       setOfferPrice('');
       setOfferDetail('');
-      toast.success("ส่งใบเสนอราคาเรียบร้อย");
+      toast.success("ส่งใบเสนอราคาและสร้างรายการเรียบร้อย");
+      
+      // รีโหลดหน้าเพื่อให้ปุ่มสถานะขึ้นทันที
+      window.location.reload(); 
+
+    } catch (err) {
+      console.error(err);
+      toast.error("สร้างใบเสนอราคาไม่สำเร็จ: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -326,6 +382,34 @@ const ChatPage = () => {
 
       // รีโหลดเพื่ออัปเดตสถานะปุ่ม
       window.location.reload();
+    } catch (err) {
+      console.error(err);
+      toast.error("เกิดข้อผิดพลาด: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // ✅ ฟังก์ชันเปลี่ยนสถานะงาน (ใช้ได้ทั้ง ส่งงาน, แก้ไข, อนุมัติ)
+  const handleUpdateStatus = async (workId, status) => {
+    if (!window.confirm("คุณแน่ใจหรือไม่ที่จะดำเนินการนี้?")) return;
+
+    try {
+      await freelancerApi.updateWorkStatus(workId, status);
+      toast.success("อัปเดตสถานะเรียบร้อย!");
+      // รีโหลดเพื่อเห็นผลลัพธ์ทันที
+    } catch (err) {
+      console.error(err);
+      toast.error("เกิดข้อผิดพลาด: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleCancelWork = async (workId) => {
+    if (!window.confirm("คุณต้องการยกเลิกงานและขอคืนเงินใช่หรือไม่?")) return;
+
+    try {
+      // เรียก API ที่เพิ่งสร้าง
+      await freelancerApi.cancelWork(workId);
+      toast.success("ยกเลิกงานและคืนเงินเรียบร้อยแล้ว");
+      // ไม่ต้อง reload เพราะมี Socket จัดการให้แล้ว
     } catch (err) {
       console.error(err);
       toast.error("เกิดข้อผิดพลาด: " + (err.response?.data?.error || err.message));
@@ -479,33 +563,82 @@ const ChatPage = () => {
                           </div>
                         </div>
                         <div className="p-4 pt-0">
-                          {isMe ? (
-                            // ✅ แก้ไขฝั่ง Freelancer (isMe)
+                          {user?.id === workStatus?.freelancerId ? (
+                            // ----------------------------------------------------
+                            // 👷‍♂️ ส่วนของ Freelancer (คนรับงาน)
+                            // ----------------------------------------------------
                             (isPaid && currentStatus === 'OFFER_PENDING') ? (
                               <button
-                                onClick={() => handleAcceptWork(workStatus.id)}
+                                onClick={() => handleUpdateStatus(workStatus.id, 'IN_PROGRESS')}
                                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5"
                               >
-                                <CheckCheck size={18} /> ยืนยันรับงาน / เริ่มงาน
+                                <PlayCircle size={18} /> ยืนยันรับงาน / เริ่มงาน
                               </button>
-                            ) : currentStatus === 'IN_PROGRESS' ? (
+                            ) : (currentStatus === 'IN_PROGRESS' || currentStatus === 'REVISION_REQUESTED') ? (
+                              <button
+                                onClick={() => handleUpdateStatus(workStatus.id, 'SUBMITTED')}
+                                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 transition-all hover:-translate-y-0.5"
+                              >
+                                <Package size={18} /> ส่งมอบงาน {currentStatus === 'REVISION_REQUESTED' && '(แก้ไขแล้ว)'}
+                              </button>
+                            ) : currentStatus === 'SUBMITTED' ? (
+                              <button disabled className="w-full py-2.5 bg-purple-50 text-purple-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 border border-purple-200">
+                                <Clock size={18} /> รอการตรวจสอบจากลูกค้า
+                              </button>
+                            ) : currentStatus === 'COMPLETED' ? (
                               <button disabled className="w-full py-2.5 bg-green-50 text-green-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 border border-green-200">
-                                <Briefcase size={18} /> กำลังดำเนินการ
+                                <Trophy size={18} /> งานเสร็จสมบูรณ์
                               </button>
                             ) : (
-                              // กรณีลูกค้ายังไม่จ่าย หรือสถานะอื่น
                               <button disabled className="w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed">
                                 <Clock size={16} /> รอการชำระเงิน
                               </button>
                             )
                           ) : (
-                            // ✅ ฝั่งลูกค้า (Employer) - โค้ดเดิมที่คุณแก้ไปแล้ว
-                            isPaid ? (
-                              <button disabled className="w-full py-2.5 bg-slate-100 text-slate-500 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200">
-                                <CheckCheck size={18} className="text-green-500" /> ชำระเงินแล้ว / รอการตอบรับ
-                              </button>
+                            // ----------------------------------------------------
+                            // 👔 ส่วนของ Employer (ผู้จ้าง)
+                            // ----------------------------------------------------
+                            currentStatus === 'SUBMITTED' ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleUpdateStatus(workStatus.id, 'REVISION_REQUESTED')}
+                                  className="flex-1 py-2.5 bg-orange-100 text-orange-700 hover:bg-orange-200 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                                >
+                                  <FileEdit size={18} /> ขอแก้ไข
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus(workStatus.id, 'COMPLETED')}
+                                  className="flex-[2] py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5"
+                                >
+                                  <Trophy size={18} /> อนุมัติ / จบงาน
+                                </button>
+                              </div>
+                            ) : isPaid ? (
+                              <div className="flex flex-col gap-2 w-full">
+                                <button disabled className={`w-full py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed border ${currentStatus === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                  currentStatus === 'COMPLETED' ? 'bg-green-50 text-green-600 border-green-200' :
+                                    currentStatus === 'REFUNDED' ? 'bg-red-50 text-red-600 border-red-200' :
+                                      'bg-slate-100 text-slate-500 border-slate-200'
+                                  }`}>
+                                  {currentStatus === 'IN_PROGRESS' && <><PlayCircle size={18} /> ฟรีแลนซ์กำลังทำงาน</>}
+                                  {currentStatus === 'REVISION_REQUESTED' && <><FileEdit size={18} /> รอแก้ไขงาน</>}
+                                  {currentStatus === 'COMPLETED' && <><Trophy size={18} /> งานเสร็จสิ้นแล้ว</>}
+                                  {currentStatus === 'OFFER_PENDING' && <><CheckCheck size={18} /> ชำระเงินแล้ว / รอรับงาน</>}
+                                  {currentStatus === 'REFUNDED' && <><X size={18} /> งานถูกยกเลิก (คืนเงินแล้ว)</>}
+                                </button>
+
+                                {/* ปุ่มยกเลิก: แสดงเฉพาะตอนสถานะเป็น OFFER_PENDING */}
+                                {currentStatus === 'OFFER_PENDING' && (
+                                  <button
+                                    onClick={() => handleCancelWork(workStatus.id)}
+                                    className="text-xs text-red-500 hover:text-red-700 underline py-1 transition-colors self-center"
+                                  >
+                                    ยกเลิกการจ้างและขอคืนเงิน
+                                  </button>
+                                )}
+                              </div>
                             ) : (
-                              <button onClick={() => handlePayClick(price)} className="...">
+                              <button onClick={() => handlePayClick(price)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5">
                                 <CheckCircle2 size={18} /> จ้างและชำระเงิน
                               </button>
                             )
@@ -514,6 +647,39 @@ const ChatPage = () => {
                       </div>
                     </div>
                   );
+                } else if (msg.content && msg.content.startsWith('[STATUS:')) {
+                  const { type, title, desc } = parseStatusMessage(msg.content);
+
+                  let statusConfig = {
+                    IN_PROGRESS: { color: 'bg-blue-50 border-blue-200 text-blue-800', icon: <PlayCircle size={24} className="text-blue-600" /> },
+                    SUBMITTED: { color: 'bg-purple-50 border-purple-200 text-purple-800', icon: <Package size={24} className="text-purple-600" /> },
+                    REVISION_REQUESTED: { color: 'bg-orange-50 border-orange-200 text-orange-800', icon: <FileEdit size={24} className="text-orange-600" /> },
+                    COMPLETED: { color: 'bg-green-50 border-green-200 text-green-800', icon: <Trophy size={24} className="text-green-600" /> },
+                    REFUNDED: { color: 'bg-red-50 border-red-200 text-red-800', icon: <AlertTriangle size={24} className="text-red-600" /> },
+                  }[type] || { color: 'bg-slate-50 border-slate-200 text-slate-800', icon: <CheckCircle2 size={24} className="text-slate-600" /> };
+
+                  content = (
+                    <div className="w-full max-w-sm my-2">
+                      <div className={`rounded-2xl border ${statusConfig.color} overflow-hidden shadow-sm`}>
+                        <div className="p-4 flex gap-4 items-start">
+                          <div className="p-2 bg-white rounded-full shadow-sm shrink-0">
+                            {statusConfig.icon}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm mb-1">{title}</h4>
+                            <p className="text-xs opacity-80 leading-relaxed">{desc}</p>
+                          </div>
+                        </div>
+                        <div className="px-4 py-2 bg-white/50 text-[10px] font-medium text-right opacity-70 border-t border-black/5">
+                          {formatTime(msg.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+
+                  // Return ทันทีเพื่อให้การ์ดอยู่ตรงกลาง (ไม่ต้องเข้า logic bubble ทั่วไป)
+                  return <div key={msg.id} className="flex justify-center my-4 w-full px-4">{content}</div>;
+
                 } else if (msg.fileType === 'IMAGE') {
                   // --- IMAGE MESSAGE ---
                   content = (

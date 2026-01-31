@@ -6,7 +6,7 @@ export const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:500
 
 // 2. (อัปเดต) สร้าง Axios instance
 const apiClient = axios.create({
-  baseURL: `${BACKEND_URL}/api/`, // (ใช้ตัวแปร)
+  baseURL: `${BACKEND_URL}/api`, // (ใช้ตัวแปร)
   headers: {
     'Content-Type': 'application/json',
   },

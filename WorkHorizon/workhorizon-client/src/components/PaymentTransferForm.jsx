@@ -78,12 +78,12 @@ const PaymentTransferForm = ({
         </div>
       </div>
 
-      <div className="space-y-4">
+       <div className="space-y-4">
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
           <p className="text-xs text-blue-700 font-bold mb-1 uppercase tracking-wider">โอนเงินเข้าบัญชีกลาง (Admin)</p>
-          <p className="text-sm text-blue-900">ธนาคารกสิกรไทย: <span className="font-mono font-bold">000-0-00000-0</span></p>
+          <p className="text-sm text-blue-900">ธนาคารกรุงไทย: <span className="font-mono font-bold">000-0-00000-0</span></p>
           <p className="text-sm text-blue-900">ชื่อ: บจก. เวิร์ค ฮอไรซัน (พักเงิน)</p>
-        </div>
+        </div> 
 
         <div>
           <label className="block mb-2 text-sm font-bold text-slate-700">แนบหลักฐานการโอน (สลิป):</label>

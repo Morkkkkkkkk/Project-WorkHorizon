@@ -43,7 +43,10 @@ import {
 
   getWithdrawalRequests, 
   approveWithdrawal,
-  adminForceStartWork 
+  adminForceStartWork,
+
+  getPendingPayments, 
+  verifyPaymentSlip,
 
 } from "../controllers/admin.controller.js";
 import { authenticateToken, isAdmin } from "../middlewares/auth.middleware.js";
@@ -125,6 +128,10 @@ router.patch('/transactions/:transactionId/withdraw', approveWithdrawal);
 
 // POST /api/admin/force-start-work - Admin ตรวจสลิปเองและบังคับเปลี่ยนสถานะงาน
 router.post("/force-start-work", authenticateToken, adminForceStartWork);
+
+// --- Payment Verification Routes ---
+router.get('/payments', getPendingPayments);
+router.patch('/payments/:transactionId/verify', verifyPaymentSlip);
 
 
 

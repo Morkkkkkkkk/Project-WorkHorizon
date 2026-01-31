@@ -21,6 +21,7 @@ import {
   Search,
   MessageSquare,
   Mail,
+  CreditCard,
 } from "lucide-react";
 import { BACKEND_URL } from "../api/apiClient.js";
 
@@ -97,6 +98,14 @@ const AdminLayout = () => {
       case "jobs": return "จัดการประกาศงาน";
       case "ads": return "จัดการโฆษณา";
       case "withdrawals": return "รายการถอนเงิน";
+
+      case "master-data": return "ข้อมูลระบบ (Master Data)";
+      case "main-categories": return "จัดการหมวดหมู่หลัก";
+      case "featured": return "จัดการหน้าแรก (Featured)";
+      case "contacts": return "กล่องข้อความจากผู้ใช้";
+      case "disputes": return "ข้อพิพาท / แจ้งปัญหา";
+      case "payments": return "ตรวจสอบสลิปโอนเงิน";
+      
       default: return "Admin Panel";
     }
   };
@@ -146,12 +155,13 @@ const AdminLayout = () => {
             )}
             <div className="space-y-1.5">
               <AdminNavLink to="/admin/dashboard" label="Dashboard" icon={<LayoutGrid size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/contacts" label="กล่องข้อความ" icon={<Mail size={20} />} collapsed={isCollapsed} /> {/* [NEW] */}
+              <AdminNavLink to="/admin/contacts" label="กล่องข้อความ" icon={<Mail size={20} />} collapsed={isCollapsed} /> 
               <AdminNavLink to="/admin/disputes" label="ข้อพิพาท / แจ้งปัญหา" icon={<MessageSquare size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/verify" label="อนุมัติบริษัท" icon={<ShieldCheck size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/withdrawals" label="การเงิน/ถอนเงิน" icon={<Wallet size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/users" label="ผู้ใช้งาน" icon={<Users size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/jobs" label="ประกาศงาน" icon={<Package size={20} />} collapsed={isCollapsed} />
+              <AdminNavLink to="/admin/payments" label="ตรวจสอบสลิปโอนเงิน" icon={<CreditCard size={20} />} collapsed={isCollapsed} />
             </div>
           </div>
 

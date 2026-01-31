@@ -261,12 +261,13 @@ export const getMyHires = async (req, res, next) => {
 
 // ✅ API ใหม่: Freelancer กด "งานเสร็จสิ้น" (หรือสร้างงานใหม่)
 // POST /api/freelancers/work/complete
+
 // ✅ API ใหม่: Freelancer สร้างใบเสนอราคา (Offer)
 // POST /api/freelancers/work
 export const createWork = async (req, res, next) => {
   try {
     const freelancerId = req.user.id; // ต้องเป็น FREELANCER
-    const { jobSeekerId, jobTitle, description, price, duration } = req.body;
+    const { jobSeekerId, jobTitle, description, price, duration, serviceConversationId } = req.body;
 
     if (!jobSeekerId)
       return res.status(400).json({ error: "Job Seeker ID is required" });
@@ -326,6 +327,7 @@ export const createWork = async (req, res, next) => {
         price: parsedPrice,
         duration: parsedDuration || 1,
         status: "OFFER_PENDING", // เริ่มต้นที่รอการตอบรับ
+        serviceConversationId: serviceConversationId
       },
     });
 
@@ -348,6 +350,9 @@ export const createWork = async (req, res, next) => {
 // PUT /api/freelancers/work/:workId/status
 export const updateWorkStatus = async (req, res, next) => {
   try {
+    // ✅ 1. ดึง Socket IO instance
+    const io = req.app.get("io");
+    
     const { workId } = req.params;
     const { status } = req.body; 
     const userId = req.user.id;
@@ -369,71 +374,61 @@ export const updateWorkStatus = async (req, res, next) => {
 
     // --- State Machine Logic ---
 
-    // 1. Accept Offer (Job Seeker Only)
+    // 1. Accept Offer / Start Work (เริ่มงาน)
     if (status === "IN_PROGRESS") {
-       // ✅ กรณี 1: Freelancer กดรับงาน (ต้องเช็คว่าลูกค้าจ่ายเงินแล้วหรือยัง)
        if (work.freelancerId === userId) {
           if (!work.isPayerPaid) {
              return res.status(400).json({ error: "ไม่สามารถเริ่มงานได้ เนื่องจากผู้ว่าจ้างยังไม่ได้ชำระเงิน" });
           }
-          systemMsg = `🚀 ${actorName} ยืนยันรับงานและเริ่มดำเนินการแล้ว`;
+          systemMsg = `[STATUS:IN_PROGRESS] 🚀 เริ่มดำเนินการแล้ว|ฟรีแลนซ์ยืนยันรับงานและเริ่มลงมือทำโปรเจกต์`;
        } 
-       // ✅ กรณี 2: Job Seeker กดรับงาน (Flow ปกติ)
        else if (work.jobSeekerId === userId) {
-          // ถ้ามี Logic เช็คการจ่ายเงินสำหรับ Job Seeker ก็ใส่ตรงนี้ได้
-          systemMsg = `✅ ${actorName} ได้ตอบรับใบเสนอราคาแล้ว`;
+          systemMsg = `[STATUS:IN_PROGRESS] 🚀 เริ่มดำเนินการแล้ว|ผู้ว่าจ้างยืนยันให้เริ่มงานได้`;
        } 
-       // ❌ กรณีอื่นๆ: ห้ามเปลี่ยน
        else {
           return res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนสถานะนี้" });
        }
     }
 
-    // 2. Submit Work (Freelancer Only)
+    // 2. Submit Work (ส่งงาน)
     if (status === "SUBMITTED") {
-        // (Logic เดิม...)
         if (work.freelancerId !== userId) return res.status(403).json({ error: "Only Freelancer can submit work" });
-        systemMsg = `📦 ${actorName} ได้ส่งงานแล้ว กรุณาตรวจสอบ`;
+        systemMsg = `[STATUS:SUBMITTED] 📦 ส่งมอบงานแล้ว|ฟรีแลนซ์ได้ส่งมอบงานให้คุณตรวจสอบ กรุณาตรวจเช็คความเรียบร้อย`;
     }
 
-    // 3. Request Revision (Job Seeker Only)
+    // 3. Request Revision (ขอแก้ไข)
     if (status === "REVISION_REQUESTED") {
-        // (Logic เดิม...)
         if (work.jobSeekerId !== userId) return res.status(403).json({ error: "Only Job Seeker can request revision" });
         updateData.revisionCount = { increment: 1 };
-        systemMsg = `📝 ${actorName} ขอให้แก้ไขงาน`;
+        systemMsg = `[STATUS:REVISION_REQUESTED] 📝 แจ้งแก้ไขงาน|ผู้ว่าจ้างต้องการให้ปรับปรุงรายละเอียดงานเพิ่มเติม`;
     }
 
-    // 4. Complete Work (Job Seeker Only) -> 💰💰 ปล่อยเงินให้ Freelancer ที่จุดนี้ 💰💰
+    // 4. Complete Work (จบงาน)
     if (status === "COMPLETED") {
       if (work.jobSeekerId !== userId)
         return res.status(403).json({ error: "Only Job Seeker can approve work" });
       
-      // ✅ ใช้ Transaction เพื่อความปลอดภัย: จบงาน + โอนเงิน
+      const completeMsg = `[STATUS:COMPLETED] 🎉 อนุมัติงานสำเร็จ|งานเสร็จสิ้นสมบูรณ์ ระบบได้โอนเงินให้ฟรีแลนซ์เรียบร้อยแล้ว`;
+
+      // ใช้ Transaction เพื่อความปลอดภัย: จบงาน + โอนเงิน
       await prisma.$transaction(async (tx) => {
-         // 4.1 อัปเดตสถานะงาน
          await tx.freelancerWork.update({
             where: { id: workId },
-            data: { 
-              status: "COMPLETED",
-              completedAt: new Date()
-            }
+            data: { status: "COMPLETED", completedAt: new Date() }
          });
 
-         // 4.2 โอนเงินเข้า Wallet Freelancer
          if (work.price && work.price > 0) {
             await tx.user.update({
               where: { id: work.freelancerId },
               data: { walletBalance: { increment: work.price } }
             });
 
-            // 4.3 สร้าง Transaction Log ว่าเป็นการรับเงิน (Payout)
             await tx.transaction.create({
                data: {
                  amount: work.price,
                  status: "SUCCESS",
                  method: "WALLET",
-                 payerId: work.jobSeekerId, // มาจากระบบ (Escrow)
+                 payerId: work.jobSeekerId,
                  receiverId: work.freelancerId,
                  workId: workId,
                  gatewayRef: `PAYOUT-${workId}`
@@ -442,25 +437,58 @@ export const updateWorkStatus = async (req, res, next) => {
          }
       });
 
-      // ส่งข้อความแจ้งเตือน (อยู่นอก Transaction หลักได้)
-      await sendSystemMessageToPair(
-        work.freelancerId,
-        work.jobSeekerId,
-        `🎉 ${actorName} อนุมัติงานแล้ว! เงินค่าจ้างถูกโอนเข้า Wallet ของฟรีแลนซ์เรียบร้อย`,
-        userId
-      );
+      // บันทึกข้อความลง DB
+      await sendSystemMessageToPair(work.freelancerId, work.jobSeekerId, completeMsg, userId);
+      
+      // ✅ 2. Real-time Trigger (กรณีจบงาน)
+      if (work.serviceConversationId) {
+        // แจ้งเปลี่ยนสถานะปุ่ม
+        io.to(work.serviceConversationId).emit("work_status_updated", {
+            workId: workId,
+            status: "COMPLETED"
+        });
+        // ส่งข้อความแจ้งเตือนเข้าแชททันที
+        io.to(work.serviceConversationId).emit("receive_message", {
+            id: 'sys-end-' + Date.now(),
+            content: completeMsg,
+            senderId: userId,
+            createdAt: new Date().toISOString(),
+            serviceConversationId: work.serviceConversationId,
+        });
+      }
       
       return res.json({ message: "Work completed and payment released" });
     }
 
-    // กรณีสถานะอื่นๆ ที่ไม่ใช่ COMPLETED
+    // --- กรณีสถานะอื่นๆ (IN_PROGRESS, SUBMITTED, REVISION) ---
     const updatedWork = await prisma.freelancerWork.update({
       where: { id: workId },
       data: updateData,
     });
 
     if (systemMsg) {
+      // บันทึกข้อความลง DB
       await sendSystemMessageToPair(work.freelancerId, work.jobSeekerId, systemMsg, userId);
+
+      // ✅ 3. Real-time Trigger (กรณีทั่วไป)
+      if (work.serviceConversationId) {
+         // ส่งข้อความแจ้งเตือนเข้าแชททันที
+         io.to(work.serviceConversationId).emit("receive_message", {
+            id: 'sys-' + Date.now(),
+            content: systemMsg,
+            senderId: userId,
+            createdAt: new Date().toISOString(),
+            serviceConversationId: work.serviceConversationId,
+        });
+      }
+    }
+
+    // ✅ แจ้งเปลี่ยนสถานะปุ่มทันที
+    if (work.serviceConversationId) {
+        io.to(work.serviceConversationId).emit("work_status_updated", {
+            workId: workId,
+            status: status
+        });
     }
 
     res.json({ message: "Status updated", work: updatedWork });
@@ -629,5 +657,95 @@ export const acceptWorkStart = async (req, res) => {
     res.json({ success: true, message: "ยืนยันเงินเข้าบัญชีกลางและเริ่มงานแล้ว", updatedWork });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ✅ API: ยกเลิกงาน (สำหรับ Job Seeker)
+// DELETE /api/freelancers/work/:workId/cancel
+export const cancelWork = async (req, res, next) => {
+  try {
+    const io = req.app.get("io");
+    const { workId } = req.params;
+    const userId = req.user.id; // คนกดต้องเป็นผู้จ้าง
+
+    const work = await prisma.freelancerWork.findUnique({
+      where: { id: workId },
+    });
+
+    if (!work) return res.status(404).json({ error: "Work not found" });
+
+    // 1. ตรวจสอบสิทธิ์: ต้องเป็นคนจ้าง (Job Seeker) เท่านั้น
+    if (work.jobSeekerId !== userId) {
+      return res.status(403).json({ error: "Only Job Seeker can cancel" });
+    }
+
+    // 2. ตรวจสอบสถานะ: ต้องเป็น OFFER_PENDING เท่านั้น (ถ้าเริ่มงานไปแล้วต้องใช้ระบบ Dispute)
+    if (work.status !== "OFFER_PENDING") {
+      return res.status(400).json({ error: "ไม่สามารถยกเลิกงานที่เริ่มดำเนินการไปแล้วได้" });
+    }
+
+    const systemMsg = `[STATUS:REFUNDED] 💸 คืนเงินสำเร็จ|ผู้ว่าจ้างยกเลิกงานและได้รับเงินคืนเข้า Wallet แล้ว`;
+
+    // 3. เริ่ม Transaction: คืนเงิน + เปลี่ยนสถานะ
+    await prisma.$transaction(async (tx) => {
+      // 3.1 คืนเงินเข้า Wallet ผู้จ้าง (ถ้ามีการจ่ายแล้ว)
+      if (work.isPayerPaid && work.price > 0) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { walletBalance: { increment: work.price } }
+        });
+
+        // 3.2 บันทึกประวัติการคืนเงิน (ใช้ TransactionType ที่มีอยู่)
+        await tx.transaction.create({
+          data: {
+            amount: work.price,
+            status: "SUCCESS",
+            method: "WALLET",
+            type: "TOPUP", // ใช้ TOPUP ไปก่อน (เป็นการเติมเงินกลับ) หรือถ้ามี REFUND ก็ใช้ได้
+            payerId: null, // ระบบคืนให้
+            receiverId: userId,
+            workId: workId,
+            gatewayRef: `REFUND-${workId}`
+          }
+        });
+      }
+
+      // 3.3 อัปเดตสถานะงานเป็น REFUNDED
+      await tx.freelancerWork.update({
+        where: { id: workId },
+        data: { 
+          status: "REFUNDED",
+          // isPayerPaid: false // ไม่ต้องแก้ flag นี้ เพื่อเก็บประวัติว่าเคยจ่ายแล้ว
+        }
+      });
+    });
+
+    // 4. แจ้งเตือน Real-time
+    if (work.serviceConversationId) {
+      // เปลี่ยนปุ่มทันที
+      io.to(work.serviceConversationId).emit("work_status_updated", {
+        workId: workId,
+        status: "REFUNDED"
+      });
+
+      // ส่งข้อความเข้าแชท
+      const chatMsg = {
+        id: 'sys-refund-' + Date.now(),
+        content: systemMsg,
+        senderId: userId,
+        createdAt: new Date().toISOString(),
+        serviceConversationId: work.serviceConversationId,
+      };
+      
+      io.to(work.serviceConversationId).emit("receive_message", chatMsg);
+
+      // บันทึกข้อความลง DB
+      await sendSystemMessageToPair(work.freelancerId, work.jobSeekerId, systemMsg, userId);
+    }
+
+    res.json({ message: "Work cancelled and refunded" });
+
+  } catch (error) {
+    next(error);
   }
 };
