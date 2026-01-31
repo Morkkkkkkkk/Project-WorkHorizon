@@ -67,6 +67,7 @@ export const updateMyFreelancerProfile = async (req, res) => {
       hourlyRate,
       portfolioUrl,
       yearsOfExperience,
+      promptPayNumber,
     } = req.body;
 
     // เตรียมข้อมูลที่จะบันทึก
@@ -74,6 +75,7 @@ export const updateMyFreelancerProfile = async (req, res) => {
       professionalTitle,
       bio,
       portfolioUrl,
+      promptPayNumber,
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
       yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : null,
     };
@@ -228,12 +230,14 @@ export const getPublicFreelancerProfile = async (req, res) => {
 export const getMyHires = async (req, res, next) => {
   try {
     const userId = req.user.id;
-
     const works = await prisma.freelancerWork.findMany({
       where: { jobSeekerId: userId },
       include: {
         freelancerProfile: {
-          include: {
+          select: { // ✅ เปลี่ยนจาก include เป็น select เพื่อระบุฟิลด์
+            id: true,
+            professionalTitle: true,
+            promptPayNumber: true, // ⭐ บรรทัดนี้สำคัญที่สุด! ต้องมีอันนี้
             user: {
               select: {
                 firstName: true,
@@ -249,7 +253,6 @@ export const getMyHires = async (req, res, next) => {
       },
       orderBy: { createdAt: "desc" },
     });
-
     res.json(works);
   } catch (error) {
     next(error);
@@ -571,5 +574,48 @@ export const submitReview = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const confirmPaymentReceived = async (req, res) => {
+  const { workId } = req.body;
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. อัปเดตสถานะใบงาน
+      const work = await tx.freelancerWork.update({
+        where: { id: workId },
+        data: { 
+          isReceiverConfirmed: true,
+          status: "IN_PROGRESS" // ✅ เปลี่ยนเป็นกำลังดำเนินการทันที
+        }
+      });
+
+      // 2. บันทึก Transaction เป็น SUCCESS
+      await tx.transaction.updateMany({
+        where: { workId: workId },
+        data: { status: "SUCCESS" }
+      });
+
+      return work;
+    });
+    res.json({ success: true, message: "ยืนยันการรับเงินและเริ่มงานแล้ว", result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const acceptWorkStart = async (req, res) => {
+  const { workId } = req.body;
+  try {
+    const updatedWork = await prisma.freelancerWork.update({
+      where: { id: workId },
+      data: { 
+        isReceiverConfirmed: true,
+        status: "IN_PROGRESS" // ✅ เปลี่ยนสถานะเป็นกำลังทำงาน
+      }
+    });
+    res.json({ success: true, message: "ยืนยันเงินเข้าบัญชีกลางและเริ่มงานแล้ว", updatedWork });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
   }
 };

@@ -13,12 +13,10 @@ export const verifyCompany = async (req, res) => {
     });
     res.json(updatedCompany);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Failed to update company verification",
-        details: error.message,
-      });
+    res.status(500).json({
+      error: "Failed to update company verification",
+      details: error.message,
+    });
   }
 };
 
@@ -28,25 +26,29 @@ export const updateUserStatus = async (req, res) => {
   const { status } = req.body; // รับค่า 'ACTIVE', 'SUSPENDED', หรือ 'BANNED'
 
   // Validate ค่าที่ส่งมา
-  const validStatuses = ['ACTIVE', 'SUSPENDED', 'BANNED'];
+  const validStatuses = ["ACTIVE", "SUSPENDED", "BANNED"];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: "Invalid status value" });
   }
 
   // ป้องกัน Admin แบนตัวเอง
   if (req.user.id === userId) {
-    return res.status(400).json({ error: "Admin cannot change their own status" });
+    return res
+      .status(400)
+      .json({ error: "Admin cannot change their own status" });
   }
 
   try {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { status: status },
-      select: { id: true, email: true, status: true } // ส่งกลับเฉพาะที่จำเป็น
+      select: { id: true, email: true, status: true }, // ส่งกลับเฉพาะที่จำเป็น
     });
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ error: "Failed to update user status", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to update user status", details: error.message });
   }
 };
 
@@ -194,39 +196,42 @@ export const adminDeleteJob = async (req, res) => {
       .json({ error: "Failed to delete job", details: error.message });
   }
 };
- 
+
 // --- PUT /api/admin/jobs/:jobId (Admin แก้ไขงาน) ---
 export const adminUpdateJob = async (req, res, next) => {
   try {
-    const { 
-        mainCategory, 
-        subCategory,
-        jobType,
-        province,
-        district,
-        skills,
-        salaryMin, 
-        salaryMax,
-        ...restOfJobData // title, description, status, etc.
+    const {
+      mainCategory,
+      subCategory,
+      jobType,
+      province,
+      district,
+      skills,
+      salaryMin,
+      salaryMax,
+      ...restOfJobData // title, description, status, etc.
     } = req.body;
 
     // (Admin ไม่ต้องเช็ก Ownership)
     // [FIX/IMPROVEMENT] Logic to handle relation updates (assuming only 'connect' is needed for Admin)
     const relations = {};
-    if (mainCategory?.id) relations.mainCategory = { connect: { id: mainCategory.id } };
+    if (mainCategory?.id)
+      relations.mainCategory = { connect: { id: mainCategory.id } };
     if (jobType?.id) relations.jobType = { connect: { id: jobType.id } };
     if (province?.id) relations.province = { connect: { id: province.id } };
-    
+
     // Handle optional fields that need explicit null/disconnect
-    if (subCategory?.id) relations.subCategory = { connect: { id: subCategory.id } };
+    if (subCategory?.id)
+      relations.subCategory = { connect: { id: subCategory.id } };
     else if (subCategory === null) relations.subCategory = { disconnect: true };
 
     if (district?.id) relations.district = { connect: { id: district.id } };
     else if (district === null) relations.district = { disconnect: true };
-    
+
     // Note: Skill management needs 'set' or 'connect/disconnect'.
-    const skillsToUpdate = skills && Array.isArray(skills) 
-        ? { set: skills.filter(s => s.id).map(s => ({ id: s.id })) }
+    const skillsToUpdate =
+      skills && Array.isArray(skills)
+        ? { set: skills.filter((s) => s.id).map((s) => ({ id: s.id })) }
         : { set: [] }; // Assume Admin only connects existing skills by ID
 
     const updatedJob = await prisma.job.update({
@@ -236,7 +241,7 @@ export const adminUpdateJob = async (req, res, next) => {
         // (แปลง salary ที่อาจจะว่าง)
         salaryMin: salaryMin || null,
         salaryMax: salaryMax || null,
-        
+
         ...relations, // [FIX] Spread relation updates
         requiredSkills: skillsToUpdate, // [FIX] Use set for skills
       },
@@ -283,9 +288,9 @@ export const adminCreateUser = async (req, res) => {
     if (role === "EMPLOYER") {
       await prisma.company.create({
         data: {
-          userId: user.id, 
-          companyName: `${firstName}`, 
-          description: "กรุณาอัปเดตรายละเอียดบริษัท", 
+          userId: user.id,
+          companyName: `${firstName}`,
+          description: "กรุณาอัปเดตรายละเอียดบริษัท",
           isVerified: false,
         },
       });
@@ -295,8 +300,8 @@ export const adminCreateUser = async (req, res) => {
       await prisma.freelancerProfile.create({
         data: {
           userId: user.id,
-          professionalTitle: "Freelancer", 
-          bio: "ยินดีต้อนรับ! กรุณาอัปเดตประวัติและผลงานของคุณ", 
+          professionalTitle: "Freelancer",
+          bio: "ยินดีต้อนรับ! กรุณาอัปเดตประวัติและผลงานของคุณ",
         },
       });
     }
@@ -364,7 +369,6 @@ export const getAdminStats = async (req, res, next) => {
     const pendingVerification = await prisma.company.count({
       where: { isVerified: false },
     });
-    
 
     // 2. นับข้อมูลใหม่ (7 วันล่าสุด)
     const newUsers = await prisma.user.count({
@@ -376,24 +380,24 @@ export const getAdminStats = async (req, res, next) => {
 
     // 2. (ใหม่) User Role Distribution (สำหรับ Pie Chart)
     const userRoles = await prisma.user.groupBy({
-      by: ['role'],
+      by: ["role"],
       _count: { role: true },
     });
 
     // 3. (ใหม่) Job Status Distribution (สำหรับ Bar/Pie Chart)
     const jobStatus = await prisma.job.groupBy({
-      by: ['status'],
+      by: ["status"],
       _count: { status: true },
     });
 
     // 4. (ใหม่) 5 งานล่าสุด (สำหรับ Recent Jobs Table)
     const recentJobs = await prisma.job.findMany({
       take: 5,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         company: { select: { companyName: true, logoUrl: true } },
         jobType: true,
-      }
+      },
     });
 
     res.json({
@@ -405,10 +409,16 @@ export const getAdminStats = async (req, res, next) => {
       newApplications,
       // ส่งข้อมูลใหม่กลับไป
       charts: {
-        userRoles: userRoles.map(r => ({ name: r.role, value: r._count.role })),
-        jobStatus: jobStatus.map(s => ({ name: s.status, value: s._count.status })),
+        userRoles: userRoles.map((r) => ({
+          name: r.role,
+          value: r._count.role,
+        })),
+        jobStatus: jobStatus.map((s) => ({
+          name: s.status,
+          value: s._count.status,
+        })),
       },
-      recentJobs
+      recentJobs,
     });
   } catch (error) {
     next(error);
@@ -429,7 +439,7 @@ const createMasterData = (modelName) => async (req, res, next) => {
       return res.status(400).json({ error: `${modelName} already exists` });
 
     const data = { name };
-    if (modelName === "SubCategory" && iconCode) {
+    if (modelName === "SubCategory") {
       if (iconCode) data.iconCode = iconCode;
       if (!mainCategoryId) {
         // (บังคับว่า SubCategory ต้องมี MainCategory)
@@ -546,7 +556,7 @@ export const adminDeleteDistrict = deleteMasterData("District");
 export const adminGetSubCategories = async (req, res) => {
   try {
     const categories = await prisma.subCategory.findMany({
-      include: { mainCategory: { select: { id: true, name: true } } }
+      include: { mainCategory: { select: { id: true, name: true } } },
     });
     res.json(categories);
   } catch (err) {
@@ -608,24 +618,31 @@ export const adminGetDistricts = async (req, res) => {
 
 // GET /api/admin/withdrawals -> ดูรายการรอถอน
 export const getWithdrawalRequests = async (req, res) => {
-   try {
-     const withdrawals = await prisma.transaction.findMany({
-       where: { 
-         method: 'BANK_TRANSFER',
-         receiverId: null, // เป็นการถอนเงินออก
-         status: 'PENDING' // เฉพาะที่รอตรวจสอบ
-       },
-       include: {
-         payer: { 
-           select: { id: true, firstName: true, lastName: true, email: true, phone: true, walletBalance: true } 
-         }
-       },
-       orderBy: { createdAt: 'asc' }
-     });
-     res.json(withdrawals);
-   } catch (error) {
-     res.status(500).json({ error: error.message });
-   }
+  try {
+    const withdrawals = await prisma.transaction.findMany({
+      where: {
+        method: "BANK_TRANSFER",
+        receiverId: null, // เป็นการถอนเงินออก
+        status: "PENDING", // เฉพาะที่รอตรวจสอบ
+      },
+      include: {
+        payer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            walletBalance: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    res.json(withdrawals);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // PATCH /api/admin/transactions/:transactionId/withdraw -> อนุมัติ/ปฏิเสธ
@@ -635,39 +652,61 @@ export const approveWithdrawal = async (req, res) => {
 
   try {
     const transaction = await prisma.transaction.findUnique({
-      where: { id: transactionId }
+      where: { id: transactionId },
     });
 
-    if (!transaction || transaction.status !== 'PENDING') {
-      return res.status(400).json({ error: "Transaction not found or not pending" });
+    if (!transaction || transaction.status !== "PENDING") {
+      return res
+        .status(400)
+        .json({ error: "Transaction not found or not pending" });
     }
 
     await prisma.$transaction(async (tx) => {
-      if (action === 'APPROVE') {
-        // ✅ อนุมัติ: เปลี่ยนสถานะเป็น SUCCESS 
+      if (action === "APPROVE") {
+        // ✅ อนุมัติ: เปลี่ยนสถานะเป็น SUCCESS
         // (ในชีวิตจริง Admin ต้องไปโอนเงินผ่านแอปธนาคารให้ลูกค้าก่อน แล้วค่อยมากดปุ่มนี้)
         await tx.transaction.update({
           where: { id: transactionId },
-          data: { status: 'SUCCESS' }
+          data: { status: "SUCCESS" },
         });
-
-      } else if (action === 'REJECT') {
+      } else if (action === "REJECT") {
         // ❌ ปฏิเสธ: เปลี่ยนสถานะเป็น FAILED และ **คืนเงินให้ User**
         await tx.transaction.update({
           where: { id: transactionId },
-          data: { status: 'FAILED' }
+          data: { status: "FAILED" },
         });
 
         await tx.user.update({
           where: { id: transaction.payerId },
-          data: { walletBalance: { increment: transaction.amount } }
+          data: { walletBalance: { increment: transaction.amount } },
         });
       }
     });
 
     res.json({ message: `Withdrawal ${action}D successfully` });
-
   } catch (error) {
     res.status(500).json({ error: "Operation failed", details: error.message });
+  }
+};
+
+
+export const adminForceStartWork = async (req, res) => {
+  const { workId, ticketId } = req.body;
+  try {
+    await prisma.$transaction([
+      // 1. บังคับเริ่มงาน
+      prisma.freelancerWork.update({
+        where: { id: workId },
+        data: { status: "IN_PROGRESS", isReceiverConfirmed: true }
+      }),
+      // 2. ปิดเคสข้อพิพาท
+      prisma.disputeTicket.update({
+        where: { id: ticketId },
+        data: { status: "RESOLVED_COMPLETED" } //
+      })
+    ]);
+    res.json({ success: true, message: "Admin บังคับเริ่มงานเรียบร้อย" });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
   }
 };

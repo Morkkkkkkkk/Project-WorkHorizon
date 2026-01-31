@@ -1,10 +1,10 @@
-// src/hooks/useMainCategories.js (ไฟล์ใหม่)
+// workhorizon-client/src/hooks/useMainCategories.js
 
 import { useState, useEffect, useCallback } from 'react';
-import { masterDataApi } from '../api/masterDataApi.js'; // (API ที่เราอัปเดตแล้ว)
+import { masterDataApi } from '../api/masterDataApi.js';
 
 /**
- * Controller สำหรับดึง "หมวดหมู่หลัก (Public)"
+ * Hook สำหรับดึงข้อมูล "หมวดหมู่หลัก" สำหรับหน้าบ้าน (Public)
  */
 export const useMainCategories = () => {
   const [mainCategories, setMainCategories] = useState([]);

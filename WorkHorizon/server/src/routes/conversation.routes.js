@@ -7,6 +7,8 @@ import {
 } from "../controllers/conversation.controller.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 
+import { chatUpload } from "../middlewares/upload.middleware.js"; // ✅ NEW
+
 const router = Router();
 router.use(authenticateToken);
 
@@ -22,7 +24,7 @@ router.get("/:convoId", getMessages);
 // GET /api/conversations/:convoId/messages (ดึงข้อความ)
 router.get("/:convoId/messages", getMessages);
 
-// POST /api/conversations/:convoId/messages (ส่งข้อความ)
-router.post("/:convoId/messages", sendMessage);
+// POST /api/conversations/:convoId/messages (ส่งข้อความ + รูป)
+router.post("/:convoId/messages", chatUpload.single("file"), sendMessage); // ✅ Added Upload Middleware
 
 export default router;

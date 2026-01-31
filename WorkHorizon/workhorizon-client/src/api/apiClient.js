@@ -30,5 +30,15 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+export const uploadFile = async (formData) => {
+  // ตรวจสอบว่าใช้ Path ไหนในการอัปโหลดไฟล์ (เช่น /upload หรือ /user/upload-profile)
+  // ในที่นี้สมมติว่าเป็น Endpoint กลางสำหรับอัปโหลด
+  const response = await apiClient.post("/upload", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data; // โดยปกติจะคืนค่า { url: "..." }
+};
 
 export default apiClient;

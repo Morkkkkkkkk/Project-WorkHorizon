@@ -247,3 +247,23 @@ export const deleteDispute = async (req, res) => {
     res.status(500).json({ message: "ลบไม่สำเร็จ (อาจมีการอ้างอิงข้อมูลอื่น)" });
   }
 };
+
+export const openPaymentDispute = async (req, res) => {
+  const { workId, reason, description } = req.body;
+  const creatorId = req.user.id;
+  try {
+    const ticket = await prisma.disputeTicket.create({
+      data: {
+        ticketNumber: `DIS-${Date.now()}`,
+        workId: workId,
+        creatorId: creatorId,
+        reason: reason, // เช่น "โอนเงินแล้วแต่ฟรีแลนซ์ไม่กดยอมรับ"
+        description: description,
+        status: "OPEN" //
+      }
+    });
+    res.json({ success: true, message: "ส่งเรื่องให้ Admin ตรวจสอบเรียบร้อย", ticket });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};

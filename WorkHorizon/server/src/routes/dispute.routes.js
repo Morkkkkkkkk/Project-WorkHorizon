@@ -5,7 +5,8 @@ import {
   replyDispute, 
   resolveDispute,
   getAllDisputes,
-  deleteDispute
+  deleteDispute,
+  openPaymentDispute
 } from "../controllers/dispute.controller.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 
@@ -31,5 +32,8 @@ router.get("/admin/all", getAllDisputes);
 
 // DELETE /api/disputes/:ticketId - (Admin) ลบข้อพิพาท
 router.delete("/:ticketId", deleteDispute);
+
+// src/routes/dispute.routes.js
+router.post("/open-payment-dispute", openPaymentDispute);
 
 export default router;

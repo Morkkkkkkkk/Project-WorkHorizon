@@ -15,7 +15,7 @@ import {
   User, DollarSign, Briefcase, Link as IconLink,
   UploadCloud, Award, Edit, ExternalLink, MapPin, ShieldCheck,
   GraduationCap, FileText, ChevronRight, Plus, Trash2, Calendar,
-  Camera, Mail, Phone, CheckCircle
+  Camera, Mail, Phone, CheckCircle, CreditCard,AlertCircle,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -27,6 +27,7 @@ const FreelancerProfilePage = () => {
   const [modalState, setModalState] = useState({ isOpen: false, mode: null, data: null });
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(null);
+  const [showTransferForm, setShowTransferForm] = useState(false);
 
   // Form State for Freelancer Specifics
   const [freelancerForm, setFreelancerForm] = useState({
@@ -35,6 +36,7 @@ const FreelancerProfilePage = () => {
     hourlyRate: '',
     yearsOfExperience: '',
     portfolioUrl: '',
+    promptPayNumber: '',
   });
 
   useEffect(() => {
@@ -46,20 +48,30 @@ const FreelancerProfilePage = () => {
         hourlyRate: fp.hourlyRate || '',
         yearsOfExperience: fp.yearsOfExperience || '',
         portfolioUrl: fp.portfolioUrl || '',
+        promptPayNumber: fp.promptPayNumber || '',
       });
     }
   }, [profile]);
 
+
+
   const handleFreelancerUpdate = async (e) => {
-    e.preventDefault();
-    try {
-      await freelancerApi.updateMyProfile(freelancerForm);
-      refreshProfile();
-      toast.success("บันทึกข้อมูลเรียบร้อย");
-    } catch (err) {
-      toast.error("บันทึกไม่สำเร็จ: " + err.message);
-    }
-  };
+  e.preventDefault();
+  try {
+    // ส่งข้อมูลทั้งหมดไป Backend
+    await freelancerApi.updateMyProfile(freelancerForm); 
+    
+    // 1. โหลดข้อมูลโปรไฟล์ใหม่เพื่อให้ UI อัปเดตค่าล่าสุด
+    await refreshProfile(); 
+    
+    // 2. ✅ เด้งออกจากหน้าแก้ไข (กลับไปหน้าแสดงผลเบอร์แบบ Card)
+    setShowTransferForm(false); 
+    
+    toast.success("บันทึกข้อมูลเรียบร้อย");
+  } catch (err) {
+    toast.error("บันทึกไม่สำเร็จ: " + err.message);
+  }
+};
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -121,46 +133,46 @@ const FreelancerProfilePage = () => {
   const tabs = [
     { id: 'overview', label: 'ข้อมูลส่วนตัว', icon: User, desc: 'ข้อมูลติดต่อพื้นฐาน' },
     { id: 'freelancer', label: 'ข้อมูลฟรีแลนซ์', icon: Briefcase, desc: 'เรทราคาและตำแหน่ง' },
+    { id: 'payment_settings', label: 'การตั้งค่าการเงิน', icon: CreditCard, desc: 'ช่องทางรับเงิน/PromptPay' },
     { id: 'experience', label: 'ประสบการณ์', icon: Award, desc: 'ประวัติการทำงาน' },
     { id: 'education', label: 'การศึกษา', icon: GraduationCap, desc: 'วุฒิการศึกษา' },
     { id: 'skills', label: 'ทักษะ', icon: ShieldCheck, desc: 'ความเชี่ยวชาญ' },
     { id: 'resume', label: 'เรซูเม่', icon: FileText, desc: 'ไฟล์เอกสาร' },
   ];
-
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
-      
+
       {/* --- HERO SECTION --- */}
       <div className="relative mb-24">
         {/* Cover Gradient */}
         <div className="h-60 w-full bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 overflow-hidden relative">
-           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
-           <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-slate-50/50 to-transparent"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+          <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-slate-50/50 to-transparent"></div>
         </div>
 
         <div className="container mx-auto max-w-6xl px-4">
           <div className="relative -mt-20 flex flex-col md:flex-row items-end gap-6">
-            
+
             {/* Profile Image with Hover Upload */}
             <div className="relative group mx-auto md:mx-0">
               <div className="w-40 h-40 rounded-full p-1.5 bg-white shadow-xl ring-1 ring-slate-100 relative overflow-hidden">
-                 <img 
-                   src={displayImage} 
-                   alt="Profile" 
-                   className="w-full h-full rounded-full object-cover"
-                 />
-                 {/* Upload Overlay */}
-                 <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-all duration-300 backdrop-blur-sm text-white">
-                    {isUploading ? (
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                    ) : (
-                      <>
-                        <Camera size={24} className="mb-1" />
-                        <span className="text-xs font-medium">เปลี่ยนรูป</span>
-                      </>
-                    )}
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
-                 </label>
+                <img
+                  src={displayImage}
+                  alt="Profile"
+                  className="w-full h-full rounded-full object-cover"
+                />
+                {/* Upload Overlay */}
+                <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-all duration-300 backdrop-blur-sm text-white">
+                  {isUploading ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  ) : (
+                    <>
+                      <Camera size={24} className="mb-1" />
+                      <span className="text-xs font-medium">เปลี่ยนรูป</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                </label>
               </div>
               {/* Status Badge (Example) */}
               <div className="absolute bottom-3 right-3 bg-green-500 w-5 h-5 rounded-full border-4 border-white shadow-sm" title="Online"></div>
@@ -168,21 +180,21 @@ const FreelancerProfilePage = () => {
 
             {/* Name & Basic Info */}
             <div className="flex-1 text-center md:text-left pb-4">
-               <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">
-                 {profile.firstName} {profile.lastName}
-               </h1>
-               <p className="text-lg text-slate-500 font-medium flex items-center justify-center md:justify-start gap-2 mb-4">
-                 {freelancerForm.professionalTitle || "ระบุตำแหน่งงานของคุณ (เช่น Graphic Designer)"}
-               </p>
-               
-               <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                  <a href={`/freelancers/${profile.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm">
-                    <ExternalLink size={16}/> ดูหน้าสาธารณะ
-                  </a>
-                  <a href="/freelancer/services" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 transition-all">
-                    <Briefcase size={16}/> จัดการงานบริการ
-                  </a>
-               </div>
+              <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">
+                {profile.firstName} {profile.lastName}
+              </h1>
+              <p className="text-lg text-slate-500 font-medium flex items-center justify-center md:justify-start gap-2 mb-4">
+                {freelancerForm.professionalTitle || "ระบุตำแหน่งงานของคุณ (เช่น Graphic Designer)"}
+              </p>
+
+              <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                <a href={`/freelancers/${profile.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm">
+                  <ExternalLink size={16} /> ดูหน้าสาธารณะ
+                </a>
+                <a href="/freelancer/services" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 transition-all">
+                  <Briefcase size={16} /> จัดการงานบริการ
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -201,11 +213,10 @@ const FreelancerProfilePage = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
-                    activeTab === tab.id
-                      ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${activeTab === tab.id
+                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
                 >
                   <div className={`p-2 rounded-lg transition-colors ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'bg-slate-100 text-slate-400 group-hover:text-slate-600'}`}>
                     <tab.icon size={18} />
@@ -236,19 +247,19 @@ const FreelancerProfilePage = () => {
                   <Edit size={18} />
                 </button>
               </div>
-              
+
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><User size={20}/></div>
+                      <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><User size={20} /></div>
                       <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">ชื่อ-นามสกุล</label>
                         <p className="text-base font-semibold text-slate-800 mt-0.5">{profile.firstName} {profile.lastName}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Mail size={20}/></div>
+                      <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Mail size={20} /></div>
                       <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">อีเมล</label>
                         <p className="text-base font-semibold text-slate-800 mt-0.5">{profile.email}</p>
@@ -257,14 +268,14 @@ const FreelancerProfilePage = () => {
                   </div>
                   <div className="space-y-6">
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-green-50 text-green-600 rounded-xl"><Phone size={20}/></div>
+                      <div className="p-3 bg-green-50 text-green-600 rounded-xl"><Phone size={20} /></div>
                       <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">เบอร์โทรศัพท์</label>
                         <p className="text-base font-semibold text-slate-800 mt-0.5">{profile.phone || '-'}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><ShieldCheck size={20}/></div>
+                      <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><ShieldCheck size={20} /></div>
                       <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">สถานะบัญชี</label>
                         <div className="mt-1">
@@ -285,82 +296,199 @@ const FreelancerProfilePage = () => {
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-8 py-6 border-b border-slate-50 bg-gradient-to-r from-white to-slate-50">
                 <h2 className="text-xl font-bold text-slate-800">ข้อมูลการทำงาน</h2>
-                <p className="text-slate-500 text-sm">ตั้งค่าข้อมูลวิชาชีพของคุณเพื่อให้ลูกค้าตัดสินใจจ้างงาน</p>
+                <p className="text-slate-500 text-sm">ตั้งค่าข้อมูลวิชาชีพของคุณ</p>
               </div>
 
               <div className="p-8">
-                <form onSubmit={handleFreelancerUpdate} className="space-y-6">
-                  <div className="group">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">ตำแหน่งงานที่เชี่ยวชาญ</label>
-                    <input
-                      type="text"
-                      value={freelancerForm.professionalTitle}
-                      onChange={(e) => setFreelancerForm({ ...freelancerForm, professionalTitle: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800 placeholder:text-slate-400"
-                      placeholder="เช่น Senior Graphic Designer"
-                    />
-                  </div>
+                <form onSubmit={handleFreelancerUpdate} className="space-y-8">
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">ค่าจ้างรายชั่วโมง (บาท)</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><DollarSign size={18}/></div>
-                        <input
-                          type="number"
-                          value={freelancerForm.hourlyRate}
-                          onChange={(e) => setFreelancerForm({ ...freelancerForm, hourlyRate: e.target.value })}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800"
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">ประสบการณ์ (ปี)</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><Award size={18}/></div>
-                        <input
-                          type="number"
-                          value={freelancerForm.yearsOfExperience}
-                          onChange={(e) => setFreelancerForm({ ...freelancerForm, yearsOfExperience: e.target.value })}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800"
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Bio (แนะนำตัว & ประสบการณ์)</label>
-                    <textarea
-                      rows={5}
-                      value={freelancerForm.bio}
-                      onChange={(e) => setFreelancerForm({ ...freelancerForm, bio: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800 placeholder:text-slate-400 resize-none"
-                      placeholder="เขียนเกี่ยวกับตัวคุณ จุดแข็ง และสิ่งที่คุณทำได้..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Portfolio Link</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><IconLink size={18}/></div>
+                  {/* ส่วนที่ 1: ข้อมูลวิชาชีพพื้นฐาน */}
+                  <div className="space-y-6">
+                    <div className="group">
+                      <label className="block text-sm font-bold text-slate-700 mb-2">ตำแหน่งงานที่เชี่ยวชาญ</label>
                       <input
-                        type="url"
-                        value={freelancerForm.portfolioUrl}
-                        onChange={(e) => setFreelancerForm({ ...freelancerForm, portfolioUrl: e.target.value })}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800 text-sm font-mono"
-                        placeholder="https://..."
+                        type="text"
+                        value={freelancerForm.professionalTitle}
+                        onChange={(e) => setFreelancerForm({ ...freelancerForm, professionalTitle: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-800"
+                        placeholder="เช่น Senior Graphic Designer"
                       />
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">ค่าจ้างรายชั่วโมง (บาท)</label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><DollarSign size={18} /></div>
+                          <input
+                            type="number"
+                            value={freelancerForm.hourlyRate}
+                            onChange={(e) => setFreelancerForm({ ...freelancerForm, hourlyRate: e.target.value })}
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 transition-all outline-none"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">ประสบการณ์ (ปี)</label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><Award size={18} /></div>
+                          <input
+                            type="number"
+                            value={freelancerForm.yearsOfExperience}
+                            onChange={(e) => setFreelancerForm({ ...freelancerForm, yearsOfExperience: e.target.value })}
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 transition-all outline-none"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Bio (แนะนำตัว & ประสบการณ์)</label>
+                      <textarea
+                        rows={4}
+                        value={freelancerForm.bio}
+                        onChange={(e) => setFreelancerForm({ ...freelancerForm, bio: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 transition-all outline-none resize-none"
+                        placeholder="เขียนเกี่ยวกับตัวคุณ..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Portfolio Link</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><IconLink size={18} /></div>
+                        <input
+                          type="url"
+                          value={freelancerForm.portfolioUrl}
+                          onChange={(e) => setFreelancerForm({ ...freelancerForm, portfolioUrl: e.target.value })}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="pt-4 flex justify-end border-t border-slate-50">
-                    <button type="submit" className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-0.5">
-                      บันทึกการเปลี่ยนแปลง
+                  {/* ปุ่มบันทึกอันเดียวท้ายฟอร์ม */}
+                  <div className="pt-6 flex justify-end">
+                    <button
+                      type="submit"
+                      className="px-10 py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-0.5"
+                    >
+                      บันทึกข้อมูลทั้งหมด
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: PAYMENT SETTINGS (การตั้งค่าการเงิน) */}
+          {activeTab === 'payment_settings' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-center bg-gradient-to-r from-white to-slate-50">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">การตั้งค่าการเงิน</h2>
+                  <p className="text-slate-500 text-sm">จัดการช่องทางรับเงินผ่าน PromptPay</p>
+                </div>
+                <CreditCard className="text-blue-600" size={24} />
+              </div>
+
+              <div className="p-8">
+                {/* ส่วนแสดงผลข้อมูลปัจจุบัน (ถ้ามีเบอร์แล้ว) */}
+                {profile?.freelancerProfile?.promptPayNumber && !showTransferForm ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="p-4 bg-white rounded-xl shadow-sm">
+                        <CheckCircle className="text-green-500" size={32} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-blue-600 uppercase">เบอร์ PromptPay ปัจจุบัน</p>
+                        <p className="text-2xl font-mono font-bold text-slate-800 tracking-wider">
+                          {profile.freelancerProfile.promptPayNumber.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <button
+                        onClick={() => setShowTransferForm(true)}
+                        className="flex-1 md:flex-none px-6 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Edit size={16} /> แก้ไข
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (window.confirm("ยืนยันการลบเบอร์ PromptPay?")) {
+                            await freelancerApi.updateMyProfile({ ...freelancerForm, promptPayNumber: '' });
+                            refreshProfile();
+                            toast.success("ลบข้อมูลเรียบร้อย");
+                          }
+                        }}
+                        className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ฟอร์มกรอก/แก้ไขข้อมูล */
+                  <form onSubmit={handleFreelancerUpdate} className="space-y-6">
+                    <div className="bg-slate-50 rounded-2xl p-6 border-2 border-dashed border-slate-200">
+                      <label className="block text-sm font-bold text-slate-700 mb-4">ระบุเบอร์โทรศัพท์ PromptPay (10 หลัก)</label>
+                      <div className="relative max-w-sm">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                          <Phone size={20} />
+                        </div>
+                        <input
+                          type="phone"
+                          maxLength={10}
+                          placeholder="08XXXXXXXX"
+                          value={freelancerForm.promptPayNumber || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setFreelancerForm({ ...freelancerForm, promptPayNumber: val });
+                          }}
+                          className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-white bg-white shadow-sm focus:border-blue-500 outline-none font-mono text-xl tracking-widest"
+                        />
+                      </div>
+
+                      {/* กันใส่เบอร์ซ้ำกรณีข้อมูลเดิมมีอยู่แล้ว (Validation) */}
+                      {profile?.freelancerProfile?.promptPayNumber === freelancerForm.promptPayNumber && profile?.freelancerProfile?.promptPayNumber !== '' && (
+                        <p className="text-xs text-orange-500 mt-2 flex items-center gap-1 italic">
+                          <AlertCircle size={12} /> เบอร์นี้เป็นเบอร์เดิมที่คุณบันทึกไว้แล้ว
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4">
+                      {showTransferForm && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTransferForm(false)}
+                          className="px-8 py-3 text-slate-500 font-bold"
+                        >
+                          ยกเลิก
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={freelancerForm.promptPayNumber.length < 10}
+                        className={`px-10 py-3 rounded-xl font-bold text-white shadow-lg transition-all ${freelancerForm.promptPayNumber.length < 10 ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}
+                      >
+                        บันทึกข้อมูล
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* คำแนะนำความปลอดภัย */}
+                <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-100 flex gap-3">
+                  <ShieldCheck className="text-orange-500 shrink-0" size={20} />
+                  <p className="text-xs text-orange-700 leading-relaxed">
+                    <strong>หมายเหตุ:</strong> ระบบจะใช้เบอร์นี้สร้าง Thai QR สำหรับรับเงินเท่านั้น โปรดตรวจสอบความถูกต้องของเบอร์โทรศัพท์ก่อนบันทึกเพื่อป้องกันความผิดพลาดในการรับเงินค่าจ้าง
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -385,23 +513,23 @@ const FreelancerProfilePage = () => {
                       <div key={exp.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         {/* Timeline Icon */}
                         <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                          <Briefcase size={18}/>
+                          <Briefcase size={18} />
                         </div>
                         {/* Content Card */}
                         <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
                           <div className="flex justify-between items-start mb-2">
-                             <div>
-                                <h3 className="font-bold text-lg text-slate-800">{exp.title}</h3>
-                                <div className="text-blue-600 font-medium text-sm">{exp.company}</div>
-                             </div>
-                             <div className="flex gap-1">
-                                <button onClick={() => setModalState({ isOpen: true, mode: 'experience', data: exp })} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={16}/></button>
-                                <button onClick={() => handleDeleteExperience(exp.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
-                             </div>
+                            <div>
+                              <h3 className="font-bold text-lg text-slate-800">{exp.title}</h3>
+                              <div className="text-blue-600 font-medium text-sm">{exp.company}</div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => setModalState({ isOpen: true, mode: 'experience', data: exp })} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={16} /></button>
+                              <button onClick={() => handleDeleteExperience(exp.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                            </div>
                           </div>
                           <time className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-slate-50 text-slate-500 border border-slate-100">
-                            <Calendar size={12}/> 
-                            {new Date(exp.startDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })} - 
+                            <Calendar size={12} />
+                            {new Date(exp.startDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })} -
                             {exp.endDate ? new Date(exp.endDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' }) : 'ปัจจุบัน'}
                           </time>
                           {exp.description && <p className="text-slate-600 text-sm leading-relaxed mt-2">{exp.description}</p>}
@@ -443,7 +571,7 @@ const FreelancerProfilePage = () => {
                   profile.educations.map(edu => (
                     <div key={edu.id} className="flex gap-4 p-5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all bg-white group">
                       <div className="flex-shrink-0 w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                        <GraduationCap size={24}/>
+                        <GraduationCap size={24} />
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
@@ -452,13 +580,13 @@ const FreelancerProfilePage = () => {
                             <p className="text-slate-600 font-medium">{edu.degree} • {edu.fieldOfStudy}</p>
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setModalState({ isOpen: true, mode: 'education', data: edu })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={18}/></button>
-                            <button onClick={() => handleDeleteEducation(edu.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                            <button onClick={() => setModalState({ isOpen: true, mode: 'education', data: edu })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={18} /></button>
+                            <button onClick={() => handleDeleteEducation(edu.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-slate-400 mt-2">
                           <Calendar size={14} />
-                          {new Date(edu.startDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })} - 
+                          {new Date(edu.startDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })} -
                           {edu.endDate ? new Date(edu.endDate).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' }) : 'ปัจจุบัน'}
                         </div>
                       </div>
@@ -476,6 +604,9 @@ const FreelancerProfilePage = () => {
               </div>
             </div>
           )}
+
+
+
 
           {/* TAB: SKILLS */}
           {activeTab === 'skills' && (
@@ -563,10 +694,10 @@ const FreelancerProfilePage = () => {
         onClose={() => setModalState({ isOpen: false, mode: null, data: null })}
         title={
           modalState.mode === 'basic' ? "แก้ไขข้อมูลส่วนตัว" :
-          modalState.mode === 'skills' ? "จัดการทักษะ" :
-          modalState.mode === 'experience' ? (modalState.data ? "แก้ไขประสบการณ์" : "เพิ่มประสบการณ์") :
-          modalState.mode === 'education' ? (modalState.data ? "แก้ไขประวัติการศึกษา" : "เพิ่มประวัติการศึกษา") :
-          "อัปโหลดเรซูเม่"
+            modalState.mode === 'skills' ? "จัดการทักษะ" :
+              modalState.mode === 'experience' ? (modalState.data ? "แก้ไขประสบการณ์" : "เพิ่มประสบการณ์") :
+                modalState.mode === 'education' ? (modalState.data ? "แก้ไขประวัติการศึกษา" : "เพิ่มประวัติการศึกษา") :
+                  "อัปโหลดเรซูเม่"
         }
       >
         {modalState.mode === 'basic' && (

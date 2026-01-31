@@ -3,7 +3,7 @@ import { createNotification } from "./application.controller.js";
 
 // --- Helper เช็กสิทธิ์ในห้องแชท ---
 const checkConversationAccess = async (convoId, userId) => {
-  // 1. ลองหาจาก Job Application Conversation (แบบเดิม)
+  // 1. ตรวจสอบใน Job Application
   const jobConvo = await prisma.conversation.findFirst({
     where: {
       id: convoId,
@@ -11,71 +11,47 @@ const checkConversationAccess = async (convoId, userId) => {
         OR: [{ userId: userId }, { job: { company: { userId: userId } } }],
       },
     },
-    // ✅ ลด Includes ให้เบาที่สุดสำหรับ Job Chat
     include: {
       application: {
-        select: {
-          userId: true,
-          job: {
-            select: {
-              title: true,
-              company: {
-                select: {
-                  userId: true,
-                  user: {
-                    select: {
-                      id: true,
-                      firstName: true,
-                      lastName: true,
-                      profileImageUrl: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              profileImageUrl: true,
-            },
-          },
+        include: {
+          job: { include: { company: { include: { user: true } } } },
+          user: { include: { freelancerProfile: true } }, // ดึงเบอร์เผื่อไว้กรณีจ้างงานบริษัท
         },
       },
     },
   });
   if (jobConvo) return { type: "JOB", data: jobConvo };
 
-  // ✅ 2. ลองหาจาก Service Conversation (FIX: ตัด freelancerProfile ออกจาก include)
-  const serviceConvo = await prisma.serviceConversation.findFirst({
-    where: { id: convoId, OR: [{ user1Id: userId }, { user2Id: userId }] },
+  // 2. ตรวจสอบใน Service Conversation (แชทจ้างฟรีแลนซ์ตรง)
+  const serviceConvo = await prisma.serviceConversation.findUnique({
+    where: { id: convoId },
     include: {
-      service: { select: { title: true, id: true } }, // ดึงแค่ชื่อ Service
+      service: { select: { title: true, id: true } },
       user1: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          profileImageUrl: true,
-          // ❌ ตัด freelancerProfile ออก เพื่อป้องกัน Crash
-        },
+        include: { freelancerProfile: { select: { promptPayNumber: true } } }, // ✅ ดึงเบอร์ PromptPay
       },
       user2: {
+        include: { freelancerProfile: { select: { promptPayNumber: true } } }, // ✅ ดึงเบอร์ PromptPay
+      },
+      freelancerWork: {
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
-          profileImageUrl: true,
-          // ❌ ตัด freelancerProfile ออก
+          status: true,
+          isPayerPaid: true, // ตัวเช็คว่าจ่ายเงินหรือยัง
+          price: true,
         },
       },
     },
   });
-  if (serviceConvo) return { type: "SERVICE", data: serviceConvo };
 
-  return null; // ไม่พบ
+  if (
+    serviceConvo &&
+    (serviceConvo.user1Id === userId || serviceConvo.user2Id === userId)
+  ) {
+    return { type: "SERVICE", data: serviceConvo };
+  }
+
+  return null;
 };
 
 // GET /api/conversations/application/:appId
@@ -144,7 +120,7 @@ export const getMessages = async (req, res) => {
     // 🛑 LOGGING STEP: ให้ Server พิมพ์ Where Clause ที่กำลังจะ execute
     console.log(
       "[DEBUG CHAT] Executing Message Query with WHERE:",
-      whereCondition
+      whereCondition,
     );
     console.log("[DEBUG CHAT] Access Type:", access.type);
 
@@ -158,8 +134,10 @@ export const getMessages = async (req, res) => {
       },
     });
 
-    res.json({ conversation: { ...access.data, type: access.type }, // เพิ่ม type ตรงนี้
-        messages });
+    res.json({
+      conversation: { ...access.data, type: access.type }, // เพิ่ม type ตรงนี้
+      messages,
+    });
   } catch (error) {
     // ✅ Log full details of the crash
     console.error("❌ CRITICAL CHAT CRASH:", error);
@@ -174,6 +152,7 @@ export const sendMessage = async (req, res) => {
   try {
     const { convoId } = req.params;
     const { content } = req.body;
+    const file = req.file; // ✅ รับไฟล์จากการ Upload
 
     const access = await checkConversationAccess(convoId, req.user.id);
     if (!access) return res.status(403).json({ error: "User unauthorized" });
@@ -184,10 +163,34 @@ export const sendMessage = async (req, res) => {
         ? { conversationId: convoId, serviceConversationId: null }
         : { serviceConversationId: convoId, conversationId: null };
 
+    // ✅ Logic จัดการไฟล์
+    let fileUrl = null;
+    let fileType = null;
+
+    if (file) {
+      fileUrl = `/uploads/chat/${file.filename}`;
+      // ตรวจสอบ mimetype เพื่อระบุว่าเป็น IMAGE หรือ FILE
+      if (file.mimetype.startsWith("image/")) {
+        fileType = "IMAGE";
+      } else {
+        fileType = "FILE";
+      }
+    }
+
     // 2. สร้างข้อความ
     const message = await prisma.message.create({
-      data: { content, senderId: req.user.id, ...relationData },
-      include: { sender: { select: { id: true, firstName: true, profileImageUrl: true } } }
+      data: {
+        content: content || "", // ถ้าส่งแค่รูป ให้ content เป็น string ว่าง (หรือ null ตาม schema)
+        fileUrl,
+        fileType,
+        senderId: req.user.id,
+        ...relationData,
+      },
+      include: {
+        sender: {
+          select: { id: true, firstName: true, profileImageUrl: true },
+        },
+      },
     });
 
     // 3. (Bonus) แจ้งเตือนคู่สนทนา (Logic ซับซ้อนขึ้นนิดหน่อย)
@@ -197,14 +200,14 @@ export const sendMessage = async (req, res) => {
           ? access.data.application.job.company.userId
           : access.data.application.userId
         : access.data.user1Id === req.user.id
-        ? access.data.user2Id
-        : access.data.user1Id; // Logic สำหรับ Service
+          ? access.data.user2Id
+          : access.data.user1Id; // Logic สำหรับ Service
 
-    await createNotification(
-      receiverId,
-      `คุณมีข้อความใหม่จาก ${req.user.firstName}`,
-      `/chat/${convoId}`
-    );
+    const notificationText = fileType
+      ? `คุณได้รับไฟล์แนบ (${fileType}) จาก ${req.user.firstName}`
+      : `คุณมีข้อความใหม่จาก ${req.user.firstName}`;
+
+    await createNotification(receiverId, notificationText, `/chat/${convoId}`);
 
     res.status(201).json(message);
   } catch (error) {
@@ -281,35 +284,27 @@ export const getAllConversations = async (req, res) => {
     let serviceConversations = [];
     try {
       serviceConversations = await prisma.serviceConversation.findMany({
-        where: {
-          OR: [{ user1Id: userId }, { user2Id: userId }],
-        },
+        where: { OR: [{ user1Id: userId }, { user2Id: userId }] },
         include: {
           service: { select: { title: true, id: true } },
           user1: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              profileImageUrl: true,
-            },
+            include: {
+              freelancerProfile: { select: { promptPayNumber: true } },
+            }, // ✅ เพิ่มบรรทัดนี้
           },
           user2: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              profileImageUrl: true,
-            },
+            include: {
+              freelancerProfile: { select: { promptPayNumber: true } },
+            }, // ✅ เพิ่มบรรทัดนี้
           },
           messages: {
-            where: { serviceConversationId: { not: null } }, // Only service messages
+            where: { serviceConversationId: { not: null } },
             orderBy: { createdAt: "desc" },
             take: 1,
             select: { content: true, createdAt: true, senderId: true },
           },
         },
-        orderBy: { createdAt: "desc" }, // ✅ FIX: Use createdAt instead of updatedAt
+        orderBy: { createdAt: "desc" },
       });
     } catch (err) {
       console.error("Error fetching service conversations:", err);
@@ -322,7 +317,7 @@ export const getAllConversations = async (req, res) => {
           (convo) =>
             convo.application &&
             convo.application.job &&
-            convo.application.job.company
+            convo.application.job.company,
         )
         .map((convo) => {
           const isJobSeeker = convo.application.userId === userId;
@@ -360,7 +355,7 @@ export const getAllConversations = async (req, res) => {
 
     // 4. เรียงตามเวลาข้อความล่าสุด
     allConversations.sort(
-      (a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime)
+      (a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime),
     );
 
     res.json(allConversations);

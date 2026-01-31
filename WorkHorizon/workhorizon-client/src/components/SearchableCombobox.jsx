@@ -13,7 +13,7 @@ import { useDebounce } from '../hooks/useDebounce'; // (เราจะสร้
  * @param {boolean} [props.disabled]
  * @param {object} [props.fetchParams] - (สำหรับ District ที่ต้องส่ง provinceId)
  */
-const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disabled = false, fetchParams = {}, allowCreate = true }) => {
+const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disabled = false, fetchParams = {}, allowCreate = true, items: propItems = [] }) => {
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,28 +25,45 @@ const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disab
   // (Effect) ดึงข้อมูลเมื่อ query เปลี่ยน
   useEffect(() => {
     if (disabled) {
-        setItems([]);
-        setIsLoading(false); // (เพิ่ม) หยุด Loading ถ้า disabled
-        return;
+      setItems([]);
+      setIsLoading(false); // (เพิ่ม) หยุด Loading ถ้า disabled
+      return;
     }
-    setIsLoading(true);
 
-    //  ปรับการส่ง Argument: ส่ง fixedParams (เช่น provinceId) ก่อน แล้วตามด้วย query
-    const fixedParams = Object.values(fetchParams);
-    
-    fetchFunction(...fixedParams, debouncedQuery) // [FIX]: Pass fixed params first, then debounced query
-      .then(data => setItems(data))
-      .finally(() => setIsLoading(false));
-  }, [debouncedQuery, fetchFunction, disabled, fetchParamsKey]);
+    // กรณีมี fetchFunction ให้ดึงจาก API
+    if (fetchFunction) {
+      setIsLoading(true);
+
+      //  ปรับการส่ง Argument: ส่ง fixedParams (เช่น provinceId) ก่อน แล้วตามด้วย query
+      const fixedParams = Object.values(fetchParams);
+
+      fetchFunction(...fixedParams, debouncedQuery) // [FIX]: Pass fixed params first, then debounced query
+        .then(data => setItems(data))
+        .catch(console.error)
+        .finally(() => setIsLoading(false));
+    }
+    // กรณีไม่มี fetchFunction ให้ใช้ propItems มา filter
+    else {
+      if (debouncedQuery === '') {
+        setItems(propItems);
+      } else {
+        const lowerQuery = debouncedQuery.toLowerCase();
+        const filtered = propItems.filter(item =>
+          item.name.toLowerCase().includes(lowerQuery)
+        );
+        setItems(filtered);
+      }
+    }
+  }, [debouncedQuery, fetchFunction, disabled, fetchParamsKey, propItems]);
 
 
- // (Logic) "สร้างใหม่"
+  // (Logic) "สร้างใหม่"
   let newItem = null;
-  if (allowCreate && query.length > 0 && !items.some(item => item.name.toLowerCase() === query.toLowerCase())){
-    newItem = { id: null, name: query }; 
+  if (allowCreate && query.length > 0 && !items.some(item => item.name.toLowerCase() === query.toLowerCase())) {
+    newItem = { id: null, name: query };
   }
 
- //  Logic การเลือก (รวม "สร้างใหม่" ไว้ที่นี่)
+  //  Logic การเลือก (รวม "สร้างใหม่" ไว้ที่นี่)
   const handleOnChange = (selectedValue) => {
     if (!selectedValue) {
       onChange(null); // (ส่ง null กลับไป)
@@ -54,10 +71,10 @@ const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disab
       return;
     }
     onChange(selectedValue);
-    setQuery(''); 
+    setQuery('');
   }
 
-  
+
 
   return (
     <Combobox value={value} onChange={handleOnChange} disabled={disabled}>
@@ -75,7 +92,7 @@ const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disab
         </div>
         <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-10">
           {isLoading && <div className="px-4 py-2 text-gray-500">กำลังโหลด...</div>}
-          
+
           {/* (เพิ่ม "สร้างใหม่") */}
           {newItem && (
             <Combobox.Option
@@ -91,7 +108,7 @@ const SearchableCombobox = ({ fetchFunction, value, onChange, placeholder, disab
               ไม่พบข้อมูล
             </div>
           )}
-          
+
           {items.map((item) => (
             <Combobox.Option
               key={item.id}

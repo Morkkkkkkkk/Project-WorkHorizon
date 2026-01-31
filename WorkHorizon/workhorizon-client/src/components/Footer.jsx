@@ -69,6 +69,14 @@ const Footer = () => {
                                 <Mail size={18} className="text-orange-600 shrink-0" />
                                 <span>67319010016@udontech.ac.th</span>
                             </li>
+                            <li>
+                                <Link to="/contact" className="flex items-center gap-3 text-slate-500 text-sm hover:text-orange-600 transition-colors">
+                                    <div className="w-[18px] flex justify-center">
+                                        <Briefcase size={16} />
+                                    </div>
+                                    <span>ส่งข้อความถึง Admin</span>
+                                </Link>
+                            </li>
                         </ul>
                     </div>
                 </div>

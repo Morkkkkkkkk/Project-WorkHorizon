@@ -19,7 +19,8 @@ import {
   Menu,
   Bell,
   Search,
-  MessageSquare
+  MessageSquare,
+  Mail,
 } from "lucide-react";
 import { BACKEND_URL } from "../api/apiClient.js";
 
@@ -33,10 +34,9 @@ const AdminNavLink = ({ to, icon, label, collapsed }) => (
     className={({ isActive }) =>
       `
       relative flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group overflow-hidden
-      ${
-        isActive
-          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
-          : "text-slate-400 hover:text-slate-100 hover:bg-white/5"
+      ${isActive
+        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+        : "text-slate-400 hover:text-slate-100 hover:bg-white/5"
       }
       ${collapsed ? "justify-center px-2" : ""}
       `
@@ -103,7 +103,7 @@ const AdminLayout = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F0F4F8] font-sans text-slate-800">
-      
+
       {/* ---------------- Sidebar (Dark Theme Premium) ---------------- */}
       <aside
         className={`
@@ -136,7 +136,7 @@ const AdminLayout = () => {
 
         {/* Menu Items (Scrollable) */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-8 custom-scrollbar">
-          
+
           {/* Group 1: Main System */}
           <div>
             {!isCollapsed && (
@@ -146,7 +146,8 @@ const AdminLayout = () => {
             )}
             <div className="space-y-1.5">
               <AdminNavLink to="/admin/dashboard" label="Dashboard" icon={<LayoutGrid size={20} />} collapsed={isCollapsed} />
-              <AdminNavLink to="/admin/disputes" label="ข้อพิพาท / แจ้งปัญหา" icon={<MessageSquare size={20} />} collapsed={isCollapsed}/>
+              <AdminNavLink to="/admin/contacts" label="กล่องข้อความ" icon={<Mail size={20} />} collapsed={isCollapsed} /> {/* [NEW] */}
+              <AdminNavLink to="/admin/disputes" label="ข้อพิพาท / แจ้งปัญหา" icon={<MessageSquare size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/verify" label="อนุมัติบริษัท" icon={<ShieldCheck size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/withdrawals" label="การเงิน/ถอนเงิน" icon={<Wallet size={20} />} collapsed={isCollapsed} />
               <AdminNavLink to="/admin/users" label="ผู้ใช้งาน" icon={<Users size={20} />} collapsed={isCollapsed} />
@@ -174,17 +175,17 @@ const AdminLayout = () => {
         <div className="p-4 border-t border-slate-800/50 bg-[#0f1629]">
           <div className={`flex items-center gap-3 p-2 rounded-xl transition-all ${isCollapsed ? "justify-center" : "bg-slate-800/50"}`}>
             <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 to-purple-500 shadow-lg">
-               <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 border-2 border-slate-900">
-                  {profileImageUrl ? (
-                    <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white font-bold bg-slate-700">
-                      {getProfileInitial()}
-                    </div>
-                  )}
-               </div>
+              <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 border-2 border-slate-900">
+                {profileImageUrl ? (
+                  <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white font-bold bg-slate-700">
+                    {getProfileInitial()}
+                  </div>
+                )}
+              </div>
             </div>
-            
+
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{user?.firstName} {user?.lastName}</p>
@@ -196,8 +197,8 @@ const AdminLayout = () => {
             )}
 
             {!isCollapsed && (
-              <button 
-                onClick={logout} 
+              <button
+                onClick={logout}
                 className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                 title="ออกจากระบบ"
               >
@@ -211,36 +212,36 @@ const AdminLayout = () => {
 
       {/* ---------------- Main Content Area ---------------- */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        
+
         {/* Top Header Bar (Glassmorphism) */}
         <header className="h-20 px-8 flex items-center justify-between bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-10">
-          
+
           {/* Title & Breadcrumb */}
           <div className="flex flex-col">
-             <h1 className="text-xl font-bold text-slate-800 tracking-tight">{getPageTitle()}</h1>
-             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                <span>Admin</span>
-                <ChevronRight size={10} />
-                <span className="text-blue-600 font-medium">{location.pathname.split("/").pop()}</span>
-             </div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">{getPageTitle()}</h1>
+            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+              <span>Admin</span>
+              <ChevronRight size={10} />
+              <span className="text-blue-600 font-medium">{location.pathname.split("/").pop()}</span>
+            </div>
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
-             
+
           </div>
         </header>
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#F0F4F8] relative">
-           {/* Background Decoration (Blob) */}
-           <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-50 to-transparent pointer-events-none -z-0"></div>
+          {/* Background Decoration (Blob) */}
+          <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-50 to-transparent pointer-events-none -z-0"></div>
 
-           <div className="max-w-7xl mx-auto relative z-10 animate-fade-in-up">
-              <Outlet />
-           </div>
+          <div className="max-w-7xl mx-auto relative z-10 animate-fade-in-up">
+            <Outlet />
+          </div>
         </div>
-        
+
       </main>
     </div>
   );

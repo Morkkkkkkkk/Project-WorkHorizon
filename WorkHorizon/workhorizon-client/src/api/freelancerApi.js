@@ -70,3 +70,11 @@ export const freelancerApi = {
   submitReview,
   getMyHires,
 };
+
+// src/api/freelancerApi.js
+export const confirmWorkStart = async (workId) => {
+  const response = await apiClient.post("/freelancer/work/confirm-start", {
+    workId,
+  });
+  return response.data;
+};

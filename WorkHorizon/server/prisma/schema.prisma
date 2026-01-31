@@ -106,11 +106,11 @@ model User {
   freelancerProfile    FreelancerProfile? // เชื่อมกับโปรไฟล์ฟรีแลนซ์
   services             Service[] // เชื่อมกับบริการที่ลงขาย
   transactions         Transaction[] // เชื่อมกับประวัติธุรกรรมที่จ่าย
-  transactionsReceived Transaction[]      @relation("TransactionReceiver") // เชื่อมกับธุรกรรมที่ได้รับเงิน
+  transactionsReceived Transaction[]         @relation("TransactionReceiver") // เชื่อมกับธุรกรรมที่ได้รับเงิน
   educations           Education[] // เชื่อมกับประวัติการศึกษา
   experiences          Experience[] // เชื่อมกับประสบการณ์ทำงาน
   resumes              Resume[] // เชื่อมกับไฟล์เรซูเม่
-  skills               Skill[]            @relation("UserSkills") // เชื่อมกับทักษะ (Many-to-Many)
+  skills               Skill[]               @relation("UserSkills") // เชื่อมกับทักษะ (Many-to-Many)
   savedJobs            SavedJob[] // เชื่อมกับงานที่กดบันทึกไว้
   messages             Message[] // เชื่อมกับข้อความแชท
   notifications        Notification[] // เชื่อมกับระบบแจ้งเตือน
@@ -158,6 +158,7 @@ model FreelancerProfile {
   profileImageUrl   String? // รูปโปรไฟล์เสริมสำหรับงานฟรีแลนซ์
   createdAt         DateTime @default(now()) // วันที่เปิดโปรไฟล์
   updatedAt         DateTime @updatedAt // วันที่แก้ไขข้อมูลล่าสุด
+  promptPayNumber   String? // พร้อมเพย์
 
   completedWorks FreelancerWork[]   @relation("FreelancerProfile") // ประวัติงานที่ทำเสร็จ
   reviews        FreelancerReview[] @relation("FreelancerProfileReviews") // รีวิวที่ได้รับในโปรไฟล์นี้
@@ -299,11 +300,11 @@ model Resume {
 // ==========================================
 
 model MainCategory {
-  id        String   @id @default(cuid()) // รหัสหมวดหมู่หลัก
-  name      String   @unique // ชื่อหมวดหมู่ (เช่น ไอที)
-  imageUrl  String? // รูปไอคอนหมวดหมู่
-  createAt  DateTime @default(now()) // วันที่สร้าง
-  updateAt  DateTime @updatedAt // วันที่อัปเดต
+  id       String   @id @default(cuid()) // รหัสหมวดหมู่หลัก
+  name     String   @unique // ชื่อหมวดหมู่ (เช่น ไอที)
+  imageUrl String? // รูปไอคอนหมวดหมู่
+  createAt DateTime @default(now()) // วันที่สร้าง
+  updateAt DateTime @updatedAt // วันที่อัปเดต
 
   subCategorys     SubCategory[] // หมวดหมู่ย่อยในสังกัด
   jobs             Job[] // งานในหมวดหมู่หลักนี้
@@ -386,23 +387,28 @@ model Conversation {
 }
 
 model ServiceConversation {
-  id        String   @id @default(uuid()) // รหัสการแชทในบริการฟรีแลนซ์
+  id        String    @id @default(uuid()) // รหัสการแชทในบริการฟรีแลนซ์
   serviceId String // รหัสบริการที่คุย
-  service   Service  @relation(fields: [serviceId], references: [id]) // เชื่อมกับบริการ
+  service   Service   @relation(fields: [serviceId], references: [id]) // เชื่อมกับบริการ
   user1Id   String // รหัสผู้ซื้อ
-  user1     User     @relation("CustomerService", fields: [user1Id], references: [id]) // เชื่อมกับผู้ซื้อ
+  user1     User      @relation("CustomerService", fields: [user1Id], references: [id]) // เชื่อมกับผู้ซื้อ
   user2Id   String // รหัสผู้ขาย
-  user2     User     @relation("FreelancerService", fields: [user2Id], references: [id]) // เชื่อมกับผู้ขาย
+  user2     User      @relation("FreelancerService", fields: [user2Id], references: [id]) // เชื่อมกับผู้ขาย
   messages  Message[] // รายการข้อความแชท
-  createdAt DateTime @default(now()) // วันที่เริ่มแชท
-  updatedAt DateTime @updatedAt // วันที่แก้ไขล่าสุด
+  createdAt DateTime  @default(now()) // วันที่เริ่มแชท
+  updatedAt DateTime  @updatedAt // วันที่แก้ไขล่าสุด
+
+  freelancerWork FreelancerWork?
+  
 
   @@unique([serviceId, user1Id]) // 1 บริการ 1 คู่คนซื้อคนขายมีห้องเดียวพอ
 }
 
 model Message {
   id                    String               @id @default(cuid()) // รหัสข้อความ
-  content               String               @db.Text // เนื้อหาข้อความ
+  content               String?              @db.Text // เนื้อหาข้อความ (Optional ถ้าส่งแค่รูป)
+  fileUrl               String? // ลิงก์ไฟล์แนบ (ถ้ามี)
+  fileType              String? // ประเภทไฟล์ (IMAGE, FILE)
   createdAt             DateTime             @default(now()) // เวลาที่ส่ง
   conversationId        String? // รหัสแชทสมัครงาน (ถ้ามี)
   conversation          Conversation?        @relation(fields: [conversationId], references: [id], onDelete: Cascade) // เชื่อมแชทสมัครงาน
@@ -488,9 +494,18 @@ model FreelancerWork {
   createdAt           DateTime             @default(now()) // วันที่เริ่มจ้างงาน
   updatedAt           DateTime             @updatedAt // วันที่อัปเดตสถานะล่าสุด
 
+  slipUrl          String?              // ✅ สลิปที่ User โอนเข้าบัญชีกลาง (Admin)
+  isPayerPaid      Boolean              @default(false) // User แจ้งโอนเงินแล้ว
+  isReceiverConfirmed Boolean           @default(false) // Freelance ตรวจสลิปบัญชีกลางแล้วยืนยัน
+  
+  // เชื่อมกับระบบข้อพิพาท (Dispute) ที่มีอยู่แล้ว
+  disputeTicket    DisputeTicket?
+
   review        FreelancerReview? // รีวิวหลังจากจบงาน (1-to-1)
   transactions  Transaction[] // รายการธุรกรรมเงินมัดจำ/ค่าจ้าง
-  disputeTicket DisputeTicket? // ตั๋วข้อพิพาทถ้างานมีปัญหา (1-to-1)
+
+  serviceConversationId String?  @unique  // ต้องมี @unique เพื่อให้เป็น 1-to-1 Relation
+  serviceConversation   ServiceConversation? @relation(fields: [serviceConversationId], references: [id])
 
   @@index([freelancerId])
   @@index([jobSeekerId])
@@ -535,17 +550,17 @@ model Transaction {
 }
 
 model DisputeTicket {
-  id           String        @id @default(cuid()) // รหัสข้อพิพาท
-  ticketNumber String        @unique // หมายเลขตั๋วข้อพิพาท (เช่น DIS-xxx)
-  workId       String        @unique // รหัสใบงานที่มีปัญหา
+  id           String         @id @default(cuid()) // รหัสข้อพิพาท
+  ticketNumber String         @unique // หมายเลขตั๋วข้อพิพาท (เช่น DIS-xxx)
+  workId       String         @unique // รหัสใบงานที่มีปัญหา
   work         FreelancerWork @relation(fields: [workId], references: [id], onDelete: Cascade) // เชื่อมใบงานที่มีปัญหา
   creatorId    String // รหัสคนเปิดเคส
-  creator      User          @relation("TicketCreator", fields: [creatorId], references: [id]) // เชื่อมผู้แจ้งปัญหา
+  creator      User           @relation("TicketCreator", fields: [creatorId], references: [id]) // เชื่อมผู้แจ้งปัญหา
   reason       String // เหตุผลการเปิดข้อพิพาท
-  description  String        @db.Text // รายละเอียดปัญหาอย่างละเอียด
-  status       DisputeStatus @default(OPEN) // สถานะการดำเนินการของเคส
-  createdAt    DateTime      @default(now()) // วันที่แจ้งเรื่อง
-  updatedAt    DateTime      @updatedAt // วันที่อัปเดตเรื่องล่าสุด
+  description  String         @db.Text // รายละเอียดปัญหาอย่างละเอียด
+  status       DisputeStatus  @default(OPEN) // สถานะการดำเนินการของเคส
+  createdAt    DateTime       @default(now()) // วันที่แจ้งเรื่อง
+  updatedAt    DateTime       @updatedAt // วันที่อัปเดตเรื่องล่าสุด
 
   messages DisputeMessage[] // ข้อความโต้ตอบภายในเคสนี้
 }
@@ -559,4 +574,19 @@ model DisputeMessage {
   senderId  String // รหัสคนส่ง (คู่กรณีหรือ Admin)
   sender    User          @relation(fields: [senderId], references: [id]) // เชื่อมคนส่ง
   createdAt DateTime      @default(now()) // เวลาที่ส่งข้อความ
+}
+
+// ==========================================
+// --- 6. Contact System (ระบบติดต่อ Admin) ---
+// ==========================================
+
+model ContactRequest {
+  id        String   @id @default(cuid())
+  name      String // ชื่อผู้ติดต่อ
+  email     String // อีเมลผู้ติดต่อ
+  subject   String // หัวข้อเรื่อง
+  message   String   @db.Text // ข้อความ
+  status    String   @default("PENDING") // PENDING, READ, REPLIED
+  createdAt DateTime @default(now()) // วันที่ส่งข้อความ
+  updatedAt DateTime @updatedAt // วันที่อัปเดตล่าสุด
 }

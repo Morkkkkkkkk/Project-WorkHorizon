@@ -214,3 +214,90 @@ export const getMyTransactions = async (req, res) => {
       res.status(500).json({ message: "Error fetching transactions" });
   }
 };
+
+export const submitPaymentSlip = async (req, res) => {
+  const { workId, slipUrl } = req.body;
+  try {
+    const updatedWork = await prisma.freelancerWork.update({
+      where: { id: workId },
+      data: { 
+        slipUrl: slipUrl,
+        isPayerPaid: true,
+        status: "OFFER_PENDING" // หรือสถานะที่รอการยืนยัน
+      }
+    });
+    res.json({ success: true, message: "ส่งหลักฐานการโอนเรียบร้อย", updatedWork });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const notifyPaymentToFreelancer = async (req, res) => {
+  try {
+    const { workId, amount, receiverId, title, serviceId, jobId } = req.body;
+    const payerId = req.user.id;
+    const file = req.file;
+
+    if (!file) return res.status(400).json({ error: "กรุณาแนบไฟล์สลิป" });
+    const slipUrl = `/uploads/payments/${file.filename}`;
+
+    // 1. ค้นหาใบงานเดิม
+    let work = await prisma.freelancerWork.findFirst({
+      where: {
+        OR: [
+          { id: workId },
+          { serviceConversationId: workId }
+        ]
+      }
+    });
+
+    if (!work) {
+      console.log("Creating new work for Chat ID:", workId);
+      
+      const freelancerProfile = await prisma.freelancerProfile.findFirst({
+        where: { userId: receiverId }
+      });
+
+      if (!freelancerProfile) return res.status(400).json({ error: "ผู้รับเงินยังไม่มีโปรไฟล์ฟรีแลนซ์" });
+
+      // ✅ แก้ไขจุดที่ Error: เปลี่ยน status เป็น 'OFFER_PENDING' หรือ 'IN_PROGRESS'
+      work = await prisma.freelancerWork.create({
+        data: {
+          jobSeekerId: payerId,
+          freelancerId: receiverId,
+          freelancerProfileId: freelancerProfile.id,
+          jobTitle: title || "จ้างงานฟรีแลนซ์",
+          price: parseFloat(amount),
+          
+          // ❌ ของเดิม: "WAITING_VERIFICATION" (ผิด Schema)
+          // ✅ ของใหม่: "OFFER_PENDING" (รอฟรีแลนซ์กดรับงาน)
+          status: "OFFER_PENDING", 
+          
+          slipUrl: slipUrl,
+          isPayerPaid: true, // ตัวบอกว่าจ่ายแล้ว รอตรวจสอบ
+          isReceiverConfirmed: false, // ฟรีแลนซ์ยังไม่กดรับ
+
+          serviceConversationId: workId, 
+          description: "สร้างอัตโนมัติจากการชำระเงินผ่าน QR",
+        }
+      });
+    } else {
+      // ✅ แก้ไขตอนอัปเดตด้วยเช่นกัน
+      work = await prisma.freelancerWork.update({
+        where: { id: work.id },
+        data: { 
+          slipUrl: slipUrl,
+          isPayerPaid: true,
+          // ใช้สถานะเดิม หรือเปลี่ยนเป็น OFFER_PENDING เพื่อรอตรวจสอบ
+          status: "OFFER_PENDING" 
+        }
+      });
+    }
+
+    res.json({ success: true, message: "ดำเนินการเรียบร้อย", work });
+
+  } catch (error) {
+    console.error("Auto-Create Work Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -31,3 +31,13 @@ export const paymentApi = {
     return await apiClient.post("/payment/withdraw", data);
   },
 };
+
+export const notifyPaymentSlip = async (formData) => {
+  // ✅ ต้องส่ง formData ไปตรงๆ ห้ามหุ้มด้วย { ... }
+  const response = await apiClient.post('/payment/notify-slip', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data', // ระบุเพื่อให้มั่นใจว่าส่งไฟล์ได้
+    },
+  });
+  return response.data;
+};

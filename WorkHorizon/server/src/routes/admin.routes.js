@@ -42,7 +42,8 @@ import {
   updateUserStatus,
 
   getWithdrawalRequests, 
-  approveWithdrawal
+  approveWithdrawal,
+  adminForceStartWork 
 
 } from "../controllers/admin.controller.js";
 import { authenticateToken, isAdmin } from "../middlewares/auth.middleware.js";
@@ -122,6 +123,8 @@ router.delete("/featured-sections/:id", deleteSection);
 router.get('/withdrawals', getWithdrawalRequests);
 router.patch('/transactions/:transactionId/withdraw', approveWithdrawal);
 
+// POST /api/admin/force-start-work - Admin ตรวจสลิปเองและบังคับเปลี่ยนสถานะงาน
+router.post("/force-start-work", authenticateToken, adminForceStartWork);
 
 
 

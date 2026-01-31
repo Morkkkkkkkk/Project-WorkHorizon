@@ -3,10 +3,11 @@ import SearchableCombobox from './SearchableCombobox';
 import { masterDataApi } from '../api/masterDataApi';
 import { Save, X } from 'lucide-react'; // อย่าลืม import icons
 
-const MasterDataForm = ({ initialData, type, onSubmit, onClose, isLoading }) => {
+const MasterDataForm = ({ initialData, type, onSubmit, onClose, isLoading, mainCategories, provinces }) => {
   const [formData, setFormData] = useState({
     name: '',
     province: null, // สำหรับ districts เท่านั้น
+    mainCategory: null, // สำหรับ subCategories เท่านั้น
   });
 
   useEffect(() => {
@@ -14,9 +15,10 @@ const MasterDataForm = ({ initialData, type, onSubmit, onClose, isLoading }) => 
       setFormData({
         name: initialData.name || '',
         province: initialData.province || null,
+        mainCategory: initialData.mainCategory || null,
       });
     } else {
-      setFormData({ name: '', province: null });
+      setFormData({ name: '', province: null, mainCategory: null });
     }
   }, [initialData, type]);
 
@@ -27,6 +29,10 @@ const MasterDataForm = ({ initialData, type, onSubmit, onClose, isLoading }) => 
     const payload = { name: formData.name };
     if (type === 'districts' && formData.province) {
       payload.provinceId = formData.province.id;
+    }
+    // เพิ่ม logic สำหรับ subCategories
+    if (type === 'subCategories' && formData.mainCategory) {
+        payload.mainCategoryId = formData.mainCategory.id;
     }
 
     onSubmit(payload);
@@ -43,12 +49,35 @@ const MasterDataForm = ({ initialData, type, onSubmit, onClose, isLoading }) => 
           </label>
           <SearchableCombobox
             placeholder="ค้นหาและเลือกจังหวัด..."
-            fetchFunction={masterDataApi.getProvinces}
+            fetchFunction={null} // ใช้ items แทน
+            items={provinces}
             value={formData.province}
             onChange={(val) => setFormData({ ...formData, province: val })}
             allowCreate={false}
           />
           <p className="text-xs text-slate-500">เลือกจังหวัดที่อำเภอนี้สังกัดอยู่</p>
+        </div>
+      )}
+
+      {/* กรณีเป็น SubCategories ต้องเลือก Main Category ก่อน */}
+      {type === 'subCategories' && (
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-slate-700">
+            หมวดหมู่หลัก <span className="text-red-500">*</span>
+          </label>
+            {/* 
+                หมายเหตุ: SearchableCombobox รองรับทั้ง fetchFunction และ items 
+                ในที่นี้เรามี data อยู่แล้วจาง props จึงส่งเป็น items จะดีกว่าเพื่อลด network request 
+            */}
+          <SearchableCombobox
+            placeholder="ค้นหาและเลือกหมวดหมู่หลัก..."
+            fetchFunction={null} 
+            items={mainCategories}
+            value={formData.mainCategory}
+            onChange={(val) => setFormData({ ...formData, mainCategory: val })}
+            allowCreate={false}
+          />
+          <p className="text-xs text-slate-500">เลือกหมวดหมู่หลักที่สายงานย่อยนี้สังกัดอยู่</p>
         </div>
       )}
 

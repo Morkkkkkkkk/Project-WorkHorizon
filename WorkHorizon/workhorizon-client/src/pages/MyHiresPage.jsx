@@ -1,10 +1,10 @@
 // src/pages/MyHiresPage.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Briefcase, CheckCircle, Star, Search, MessageSquare, 
-  Clock, Filter, X, ChevronRight, AlertCircle, Plus 
+import {
+    Briefcase, CheckCircle, Star, Search, MessageSquare,
+    Clock, Filter, X, ChevronRight, AlertCircle, Plus
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom'; // เพิ่ม useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { freelancerApi } from '../api/freelancerApi';
 import Modal from '../components/Modal';
@@ -12,8 +12,9 @@ import { toast } from 'react-toastify';
 import PaymentModal from '../components/PaymentModal';
 import { BACKEND_URL } from '../api/apiClient';
 
-// Import Component แจ้งปัญหา (ต้องมีไฟล์นี้ก่อน)
-import CreateDisputeModal from "../components/CreateDisputeModal"; 
+// Import ส่วนที่เพิ่มใหม่
+import CreateDisputeModal from "../components/CreateDisputeModal";
+import PaymentTransferForm from "../components/PaymentTransferForm"; // Component ที่สร้างไว้ก่อนหน้า
 
 const MyHiresPage = () => {
     const [works, setWorks] = useState([]);
@@ -32,8 +33,9 @@ const MyHiresPage = () => {
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState('');
 
-    // ✅ Dispute State (เพิ่ม State สำหรับ Modal แจ้งปัญหา)
+    // ✅ State ที่เพิ่มเข้ามาสำหรับระบบใหม่
     const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const [showTransferForm, setShowTransferForm] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -54,29 +56,24 @@ const MyHiresPage = () => {
 
     // ฟังก์ชันจัดการสถานะ
     const handleStatusUpdate = async (workId, newStatus) => {
-        // CASE A: จ่ายเงิน
+        // CASE A: จ่ายเงิน (ปรับปรุงให้เปิดหน้าโอนเงิน)
         if (newStatus === 'IN_PROGRESS') {
             const workToPay = works.find(w => w.id === workId);
             if (workToPay) {
-                setPaymentData({
-                    title: `ชำระเงิน: ${workToPay.jobTitle}`,
-                    amount: workToPay.price,
-                    receiverId: workToPay.freelancerId,
-                    workId: workId,
-                });
-                setIsPaymentOpen(true);
+                setSelectedWork(workToPay);
+                setShowTransferForm(true); // เปิดหน้าจอ QR/โอนเงิน
             }
             return;
         }
 
-        // CASE B: เปลี่ยนสถานะ
+        // CASE B: เปลี่ยนสถานะปกติ
         if (!window.confirm(`ยืนยันการเปลี่ยนสถานะเป็น "${newStatus}"?`)) return;
 
         try {
             await freelancerApi.updateWorkStatus(workId, newStatus);
             toast.success('อัปเดตสถานะเรียบร้อย');
             fetchHires();
-            setSelectedWork(null); 
+            setSelectedWork(null);
         } catch (err) {
             toast.error(err.message);
         }
@@ -84,7 +81,8 @@ const MyHiresPage = () => {
 
     const handlePaymentSuccess = () => {
         setIsPaymentOpen(false);
-        toast.success('ชำระเงินเรียบร้อย เริ่มต้นโปรเจกต์แล้ว! 🚀');
+        setShowTransferForm(false);
+        toast.success('แจ้งโอนเงินเรียบร้อย รอการตรวจสอบ! 🚀');
         fetchHires();
         setActiveTab('ACTIVE');
         setSelectedWork(null);
@@ -121,10 +119,10 @@ const MyHiresPage = () => {
     // Filter Logic
     const filteredWorks = works.filter(work => {
         const matchesSearch = work.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              (work.freelancerProfile?.user?.firstName || '').toLowerCase().includes(searchTerm.toLowerCase());
-        
+            (work.freelancerProfile?.user?.firstName || '').toLowerCase().includes(searchTerm.toLowerCase());
+
         if (activeTab === 'ALL') return matchesSearch;
-        
+
         if (activeTab === 'ACTIVE') {
             return matchesSearch && ['IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'DISPUTED'].includes(work.status);
         }
@@ -168,8 +166,8 @@ const MyHiresPage = () => {
             onClick={() => setActiveTab(id)}
             className={`
                 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
-                ${activeTab === id 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                ${activeTab === id
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}
             `}
         >
@@ -177,6 +175,14 @@ const MyHiresPage = () => {
             {label}
         </button>
     );
+
+
+    const generateQRUrl = (phone, amount) => {
+        // ใช้ Service ของ promptpay.io ซึ่งง่ายที่สุดสำหรับโปรเจกต์ส่งอาจารย์
+        // รูปแบบ: https://promptpay.io/{เบอร์โทร}/{ยอดเงิน}.png
+        const cleanPhone = phone.replace(/\D/g, ''); // ลบขีดออกให้เหลือแค่ตัวเลข
+        return `https://promptpay.io/${cleanPhone}/${amount}.png`;
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans relative overflow-x-hidden" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
@@ -198,9 +204,9 @@ const MyHiresPage = () => {
                     </div>
                     <div className="relative w-full md:w-64 px-2 md:px-0">
                         <Search className="absolute left-5 md:left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input 
-                            type="text" 
-                            placeholder="ค้นหางาน..." 
+                        <input
+                            type="text"
+                            placeholder="ค้นหางาน..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 outline-none"
@@ -228,15 +234,15 @@ const MyHiresPage = () => {
                                     <tr><td colSpan="5" className="p-10 text-center text-slate-400">ไม่พบรายการงานในหมวดหมู่นี้</td></tr>
                                 ) : (
                                     filteredWorks.map(work => (
-                                        <tr key={work.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setSelectedWork(work)}>
+                                        <tr key={work.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => { setSelectedWork(work); setShowTransferForm(false); }}>
                                             <td className="p-4">
                                                 <p className="font-bold text-slate-800 truncate max-w-[200px]">{work.jobTitle}</p>
                                                 <p className="text-xs text-slate-400">ID: {work.id.slice(-6)}</p>
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
-                                                    <img 
-                                                        src={work.freelancerProfile?.user?.profileImageUrl ? `${BACKEND_URL}${work.freelancerProfile.user.profileImageUrl}` : "https://placehold.co/40"} 
+                                                    <img
+                                                        src={work.freelancerProfile?.user?.profileImageUrl ? `${BACKEND_URL}${work.freelancerProfile.user.profileImageUrl}` : "https://placehold.co/40"}
                                                         className="w-8 h-8 rounded-full object-cover"
                                                         alt=""
                                                     />
@@ -246,8 +252,8 @@ const MyHiresPage = () => {
                                             <td className="p-4 font-mono text-sm text-slate-600">฿{parseFloat(work.price).toLocaleString()}</td>
                                             <td className="p-4">{getStatusBadge(work.status)}</td>
                                             <td className="p-4 text-right">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedWork(work); }}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedWork(work); setShowTransferForm(false); }}
                                                     className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all inline-flex items-center gap-1"
                                                 >
                                                     รายละเอียด <ChevronRight size={16} />
@@ -265,12 +271,10 @@ const MyHiresPage = () => {
             {/* Quick View Drawer */}
             {selectedWork && (
                 <div className="fixed inset-0 z-50 flex justify-end">
-                    {/* Backdrop */}
                     <div className="absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity" onClick={() => setSelectedWork(null)}></div>
-                    
-                    {/* Drawer Content */}
+
                     <div className="relative w-full max-w-md bg-white h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300 flex flex-col">
-                        
+
                         {/* Header */}
                         <div className="flex justify-between items-start mb-6 border-b border-slate-100 pb-4">
                             <div>
@@ -284,126 +288,129 @@ const MyHiresPage = () => {
 
                         {/* Body */}
                         <div className="flex-1 space-y-6">
-                            {/* Status Card */}
                             <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                                <div className="flex justify-between items-center mb-4">
-                                    <p className="text-xs font-bold text-slate-400 uppercase">สถานะงาน</p>
-                                    {getStatusBadge(selectedWork.status)}
-                                </div>
-                                <div className="text-3xl font-bold text-slate-800 mb-6">฿{parseFloat(selectedWork.price).toLocaleString()}</div>
-                                
-                                {/* Action Buttons Logic */}
-                                <div className="space-y-3">
-                                    {selectedWork.status === 'OFFER_PENDING' && (
-                                        <button 
-                                            onClick={() => handleStatusUpdate(selectedWork.id, 'IN_PROGRESS')}
-                                            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
-                                        >
-                                            ชำระเงิน & เริ่มงาน
+                                {showTransferForm && selectedWork.status === 'OFFER_PENDING' ? (
+                                    <div className="space-y-4">
+
+                                      
+
+                                        <button onClick={() => setShowTransferForm(false)} className="text-xs text-blue-600 font-bold mb-2 flex items-center gap-1">
+                                            ← กลับไปหน้ารายละเอียด
                                         </button>
-                                    )}
 
-                                    {selectedWork.status === 'SUBMITTED' && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <button 
-                                                onClick={() => handleStatusUpdate(selectedWork.id, 'COMPLETED')}
-                                                className="py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
-                                            >
-                                                อนุมัติงาน
-                                            </button>
-                                            <button 
-                                                onClick={() => handleStatusUpdate(selectedWork.id, 'REVISION_REQUESTED')}
-                                                className="py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all"
-                                            >
-                                                ขอแก้ไข
-                                            </button>
-                                        </div>
-                                    )}
+                                        {/* ส่วนแสดง QR Code ที่เพิ่มเข้ามา */}
+                                        <div className="bg-white p-4 rounded-2xl border-2 border-blue-500 flex flex-col items-center shadow-inner">
+                                            <h4 className="text-sm font-bold text-blue-700 mb-3 text-center">สแกนจ่ายเงิน (PromptPay)</h4>
 
-                                    {selectedWork.status === 'COMPLETED' && !selectedWork.review && (
-                                         <button 
-                                            onClick={() => handleOpenReviewModal(selectedWork.id)}
-                                            className="w-full py-3 bg-yellow-400 text-white font-bold rounded-xl hover:bg-yellow-500 shadow-lg shadow-yellow-200 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <Star size={18} fill="white" /> ให้คะแนนรีวิว
-                                        </button>
-                                    )}
-                                </div>
+                                            {/* ดึงเบอร์จาก selectedWork.freelancerProfile.promptPayNumber */}
+                                            {/* <img
+                                               src={generateQRUrl(selectedWork.freelancerProfile?.promptPayNumber || "0812345678", selectedWork.price)}
+                                               alt="QR Code"
+                                                className="w-48 h-48 rounded-lg shadow-sm mb-3"
+                                            /> */}
 
-                                {/* ✅✅✅ ส่วนที่เพิ่มเข้ามา: ปุ่มแจ้งปัญหา (ฝั่ง Job Seeker) ✅✅✅ */}
-                                <div className="mt-4 pt-4 border-t border-slate-200">
-                                    
-                                    {/* 1. ปุ่มแจ้งปัญหา (แสดงเมื่อสถานะยังไม่เสร็จ) */}
-                                    {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
-                                        <div className="text-center">
-                                            <p className="text-xs text-slate-400 mb-2">หากพบปัญหา สามารถแจ้งเจ้าหน้าที่ได้</p>
-                                            <button
-                                                onClick={() => setShowDisputeModal(true)}
-                                                className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto"
-                                            >
-                                                <MessageSquare size={14} /> แจ้งปัญหา / ขอคืนเงิน
-                                            </button>
-                                        </div>
-                                    )}
+                                           // ส่วนแสดง QR Code ใน MyHiresPage.jsx
+                                            <img
+                                                src={`https://promptpay.io/${selectedWork.freelancerProfile?.promptPayNumber}/${selectedWork.price}.png`}
+                                                alt="QR Code"
+                                                className="w-48 h-48 rounded-lg"
+                                                // 💡 ใส่ onError เพื่อเช็คว่าถ้าเบอร์ไม่มาให้โชว์รูปสำรอง
+                                                onError={(e) => { e.target.src = "https://placehold.co/200?text=Waiting+for+Payment+Info"; }}
+                                            />
 
-                                    {/* 2. กรณีมีข้อพิพาทอยู่แล้ว (DISPUTED) */}
-                                    {selectedWork.status === "DISPUTED" && (
-                                        <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
-                                            <div className="flex items-start gap-3">
-                                                <div className="p-2 bg-red-100 rounded-full text-red-600">
-                                                    <MessageSquare size={20} />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
-                                                    <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่เพื่อหาทางออก</p>
-                                                </div>
+                                            <div className="text-center">
+                                                <p className="text-xs text-gray-500">โอนเข้าบัญชีกลาง (Admin)</p>
+                                                <p className="text-lg font-mono font-bold text-slate-800">฿{parseFloat(selectedWork.price).toLocaleString()}</p>
                                             </div>
-                                            <button
-                                                onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} 
-                                                className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm"
-                                            >
-                                                ไปที่ห้องระงับข้อพิพาท
-                                            </button>
                                         </div>
-                                    )}
 
-                                    {/* 3. กรณีคืนเงินแล้ว (REFUNDED) */}
-                                    {selectedWork.status === "REFUNDED" && (
-                                        <div className="bg-slate-200 border border-slate-300 p-3 rounded-xl text-center">
-                                            <p className="text-slate-500 font-bold text-sm">🚫 งานนี้ถูกยกเลิกและคืนเงินเรียบร้อยแล้ว</p>
+                                        {/* ฟอร์มส่งสลิปเดิมของคุณ */}
+                                        <PaymentTransferForm
+                                            workId={selectedWork.id}
+                                            amount={selectedWork.price}
+                                            // ✅ ส่งเบอร์ที่ดึงมาจาก freelancerProfile
+                                            promptPayId={selectedWork.freelancerProfile?.promptPayNumber}
+                                            onFetchData={handlePaymentSuccess}
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <p className="text-xs font-bold text-slate-400 uppercase">สถานะงาน</p>
+                                            {getStatusBadge(selectedWork.status)}
                                         </div>
-                                    )}
-                                </div>
-                                {/* ✅✅✅ จบส่วนที่เพิ่มเข้ามา ✅✅✅ */}
+                                        <div className="text-3xl font-bold text-slate-800 mb-6">฿{parseFloat(selectedWork.price).toLocaleString()}</div>
 
+                                        <div className="space-y-3">
+                                            {selectedWork.status === 'OFFER_PENDING' && !selectedWork.isPayerPaid && (
+                                                <button
+                                                    onClick={() => setShowTransferForm(true)}
+                                                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                                                >
+                                                    ชำระเงิน & เริ่มงาน
+                                                </button>
+                                            )}
+
+                                            {selectedWork.isPayerPaid && !selectedWork.isReceiverConfirmed && (
+                                                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg text-center">
+                                                    <p className="text-orange-700 text-sm font-bold">แจ้งโอนเงินเรียบร้อย</p>
+                                                    <p className="text-xs text-orange-600">รอฟรีแลนซ์ตรวจสอบสลิปบัญชีกลาง</p>
+                                                </div>
+                                            )}
+
+                                            {selectedWork.status === 'SUBMITTED' && (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => handleStatusUpdate(selectedWork.id, 'COMPLETED')} className="py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">อนุมัติงาน</button>
+                                                    <button onClick={() => handleStatusUpdate(selectedWork.id, 'REVISION_REQUESTED')} className="py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all">ขอแก้ไข</button>
+                                                </div>
+                                            )}
+
+                                            {selectedWork.status === 'COMPLETED' && !selectedWork.review && (
+                                                <button onClick={() => handleOpenReviewModal(selectedWork.id)} className="w-full py-3 bg-yellow-400 text-white font-bold rounded-xl hover:bg-yellow-500 shadow-lg shadow-yellow-200 transition-all flex items-center justify-center gap-2">
+                                                    <Star size={18} fill="white" /> ให้คะแนนรีวิว
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Dispute Section */}
+                                        <div className="mt-4 pt-4 border-t border-slate-200">
+                                            {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
+                                                <div className="text-center">
+                                                    <p className="text-xs text-slate-400 mb-2">หากพบปัญหา สามารถแจ้งเจ้าหน้าที่ได้</p>
+                                                    <button onClick={() => setShowDisputeModal(true)} className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto">
+                                                        <MessageSquare size={14} /> แจ้งปัญหา / ขอคืนเงิน
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {selectedWork.status === "DISPUTED" && (
+                                                <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="p-2 bg-red-100 rounded-full text-red-600"><MessageSquare size={20} /></div>
+                                                        <div>
+                                                            <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
+                                                            <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm">ไปที่ห้องระงับข้อพิพาท</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
-                            {/* Chat Link */}
-                            <Link 
-                                to={`/chat`} // ถ้ามี conversationId ใส่ตรงนี้
-                                className="flex items-center justify-center gap-2 w-full py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all"
-                            >
-                                <MessageSquare size={18} />
-                                เปิดห้องแชท
-                            </Link>
+                            <Link to={`/chat`} className="flex items-center justify-center gap-2 w-full py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all"><MessageSquare size={18} /> เปิดห้องแชท</Link>
 
-                            {/* Details */}
                             <div>
                                 <h3 className="font-bold text-slate-800 mb-2">รายละเอียด</h3>
-                                <div className="text-sm text-slate-600 bg-white p-4 rounded-xl border border-slate-100">
-                                    {selectedWork.description || "ไม่มีรายละเอียดเพิ่มเติม"}
-                                </div>
+                                <div className="text-sm text-slate-600 bg-white p-4 rounded-xl border border-slate-100">{selectedWork.description || "ไม่มีรายละเอียดเพิ่มเติม"}</div>
                             </div>
 
-                             {/* Freelancer Info */}
-                             <div>
+                            <div>
                                 <h3 className="font-bold text-slate-800 mb-2">ฟรีแลนซ์</h3>
                                 <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-100">
-                                    <img 
-                                        src={selectedWork.freelancerProfile?.user?.profileImageUrl ? `${BACKEND_URL}${selectedWork.freelancerProfile.user.profileImageUrl}` : "https://placehold.co/50"} 
-                                        className="w-10 h-10 rounded-full object-cover"
-                                        alt=""
-                                    />
+                                    <img src={selectedWork.freelancerProfile?.user?.profileImageUrl ? `${BACKEND_URL}${selectedWork.freelancerProfile.user.profileImageUrl}` : "https://placehold.co/50"} className="w-10 h-10 rounded-full object-cover" alt="" />
                                     <div>
                                         <p className="font-bold text-sm text-slate-800">{selectedWork.freelancerProfile?.user?.firstName} {selectedWork.freelancerProfile?.user?.lastName}</p>
                                         <p className="text-xs text-slate-500">Freelancer</p>
@@ -417,48 +424,22 @@ const MyHiresPage = () => {
 
             {/* Modals */}
             {paymentData && (
-                <PaymentModal
-                    isOpen={isPaymentOpen}
-                    onClose={() => setIsPaymentOpen(false)}
-                    paymentData={paymentData}
-                    onSuccess={handlePaymentSuccess}
-                />
+                <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} paymentData={paymentData} onSuccess={handlePaymentSuccess} />
             )}
-            
-            <Modal
-                isOpen={isReviewModalOpen}
-                onClose={() => setIsReviewModalOpen(false)}
-                title="ให้คะแนนและรีวิว"
-            >
+
+            <Modal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} title="ให้คะแนนและรีวิว">
                 <form onSubmit={handleSubmitReview} className="p-6 space-y-6">
                     <div className="text-center">
                         <label className="block text-base font-bold text-slate-800 mb-3">ความพึงพอใจ</label>
                         <div className="flex justify-center gap-2">
                             {[1, 2, 3, 4, 5].map((star) => (
-                                <button
-                                    key={star}
-                                    type="button"
-                                    onClick={() => setReviewRating(star)}
-                                    className="focus:outline-none transition-transform hover:scale-110 p-1"
-                                >
-                                    <Star
-                                        size={40}
-                                        className={`transition-colors ${star <= reviewRating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-200'}`}
-                                    />
+                                <button key={star} type="button" onClick={() => setReviewRating(star)} className="focus:outline-none transition-transform hover:scale-110 p-1">
+                                    <Star size={40} className={`transition-colors ${star <= reviewRating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-200'}`} />
                                 </button>
                             ))}
                         </div>
                     </div>
-                    <div>
-                        <textarea
-                            value={reviewComment}
-                            onChange={(e) => setReviewComment(e.target.value)}
-                            placeholder="เขียนรีวิว..."
-                            rows={4}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-blue-100 outline-none"
-                            required
-                        />
-                    </div>
+                    <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="เขียนรีวิว..." rows={4} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-blue-100 outline-none" required />
                     <div className="flex gap-3">
                         <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50">ยกเลิก</button>
                         <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">ส่งรีวิว</button>
@@ -466,17 +447,8 @@ const MyHiresPage = () => {
                 </form>
             </Modal>
 
-            {/* ✅ Modal แจ้งปัญหา (เพิ่มตรงนี้) */}
             {showDisputeModal && selectedWork && (
-                <CreateDisputeModal
-                    workId={selectedWork.id}
-                    onClose={() => setShowDisputeModal(false)}
-                    onSuccess={() => {
-                        fetchHires(); 
-                        setShowDisputeModal(false);
-                        setSelectedWork(null);
-                    }}
-                />
+                <CreateDisputeModal workId={selectedWork.id} onClose={() => setShowDisputeModal(false)} onSuccess={() => { fetchHires(); setShowDisputeModal(false); setSelectedWork(null); }} />
             )}
         </div>
     );

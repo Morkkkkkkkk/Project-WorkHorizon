@@ -47,6 +47,7 @@ CREATE TABLE `FreelancerProfile` (
     `profileImageUrl` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `promptPayNumber` VARCHAR(191) NULL,
 
     UNIQUE INDEX `FreelancerProfile_userId_key`(`userId`),
     PRIMARY KEY (`id`)
@@ -279,7 +280,9 @@ CREATE TABLE `ServiceConversation` (
 -- CreateTable
 CREATE TABLE `Message` (
     `id` VARCHAR(191) NOT NULL,
-    `content` TEXT NOT NULL,
+    `content` TEXT NULL,
+    `fileUrl` VARCHAR(191) NULL,
+    `fileType` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `conversationId` VARCHAR(191) NULL,
     `serviceConversationId` VARCHAR(191) NULL,
@@ -364,6 +367,10 @@ CREATE TABLE `FreelancerWork` (
     `revisionCount` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `slipUrl` VARCHAR(191) NULL,
+    `isPayerPaid` BOOLEAN NOT NULL DEFAULT false,
+    `isReceiverConfirmed` BOOLEAN NOT NULL DEFAULT false,
+    `serviceConversationId` VARCHAR(191) NULL,
 
     INDEX `FreelancerWork_freelancerId_idx`(`freelancerId`),
     INDEX `FreelancerWork_jobSeekerId_idx`(`jobSeekerId`),
@@ -432,6 +439,20 @@ CREATE TABLE `DisputeMessage` (
     `ticketId` VARCHAR(191) NOT NULL,
     `senderId` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ContactRequest` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(191) NOT NULL,
+    `subject` VARCHAR(191) NOT NULL,
+    `message` TEXT NOT NULL,
+    `status` VARCHAR(191) NOT NULL DEFAULT 'PENDING',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

@@ -13,7 +13,8 @@ import mainCategoryRoutes from "./mainCategory.routes.js";
 import featuredSectionRoutes from "./featuredSection.routes.js";
 import freelancerRoutes from "./freelancer.routes.js";
 import serviceRoutes from "./service.routes.js";
-import reviewRoutes from "./review.routes.js"; 
+import reviewRoutes from "./review.routes.js";
+import contactRoutes from "./contact.routes.js";
 import paymentRoutes from "./payment.routes.js";
 import disputeRoutes from "./dispute.routes.js";
 
@@ -36,10 +37,11 @@ router.use("/featured-sections", featuredSectionRoutes);
 
 router.use("/freelancers", freelancerRoutes);
 router.use("/services", serviceRoutes);
-router.use("/reviews", reviewRoutes); 
+router.use("/reviews", reviewRoutes);
 
 router.use("/payment", paymentRoutes);
 router.use("/disputes", disputeRoutes);
+router.use("/contact", contactRoutes); // [NEW] Contact Routes
 
 // Health check
 router.get("/health", (req, res) => {

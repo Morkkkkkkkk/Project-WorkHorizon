@@ -44,9 +44,11 @@ import Layout from "./components/Layout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 
-import WalletPage from './pages/WalletPage';   
+import WalletPage from './pages/WalletPage';
 
 import DisputeChatPage from "./pages/DisputeChatPage";
+import ContactUsPage from "./pages/ContactUsPage.jsx";
+import AdminContactPage from "./pages/AdminContactPage.jsx";
 
 function App() {
   return (
@@ -63,6 +65,7 @@ function App() {
         <Route path="/freelancers/:id" element={<PublicFreelancerPage />} />
         <Route path="/services/:id" element={<ServiceDetailPage />} />
         <Route path="/categories" element={<AllCategoriesPage />} />
+        <Route path="/contact" element={<ContactUsPage />} />
       </Route>
 
       {/* ========================================
@@ -228,6 +231,7 @@ function App() {
         <Route path="/admin/featured" element={<AdminFeaturedPage />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
         <Route path="/admin/disputes" element={<AdminDisputePage />} />
+        <Route path="/admin/contacts" element={<AdminContactPage />} /> {/* [NEW] */}
       </Route>
       {/* (จบส่วน Admin) */}
 
