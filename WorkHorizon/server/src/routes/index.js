@@ -17,6 +17,7 @@ import reviewRoutes from "./review.routes.js";
 import contactRoutes from "./contact.routes.js";
 import paymentRoutes from "./payment.routes.js";
 import disputeRoutes from "./dispute.routes.js";
+import themeRoutes from "./theme.routes.js";
 
 const router = Router();
 
@@ -41,7 +42,9 @@ router.use("/reviews", reviewRoutes);
 
 router.use("/payment", paymentRoutes);
 router.use("/disputes", disputeRoutes);
-router.use("/contact", contactRoutes); // [NEW] Contact Routes
+router.use("/contact", contactRoutes); 
+
+router.use("/themes", themeRoutes);
 
 // Health check
 router.get("/health", (req, res) => {

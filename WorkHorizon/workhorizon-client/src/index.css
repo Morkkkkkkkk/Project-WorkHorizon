@@ -28,6 +28,15 @@
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    /* ค่าเริ่มต้น (Default Blue Theme) */
+    --color-primary: #2563eb;      /* blue-600 */
+    --color-secondary: #1d4ed8;    /* blue-700 */
+    --bg-color: #f8fafc;           /* slate-50 */
+    --text-color: #1e293b;         /* slate-800 */
+    
+    /* เฉดสีอ่อน (สำหรับ bg-blue-50) - คำนวณคร่าวๆ หรือใช้สีตายตัวก็ได้ */
+    --color-primary-50: #eff6ff;
   }
 
   /* 3. กำหนดค่าเริ่มต้น (Base) - แก้ให้ใช้ Prompt เป็นหลัก */

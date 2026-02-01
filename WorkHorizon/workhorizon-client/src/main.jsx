@@ -4,7 +4,8 @@ import App from './App.jsx';
 import './index.css'; // (Tailwind CSS)
 
 import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext.jsx'; // <--- Import
+import { AuthProvider } from './contexts/AuthContext.jsx'; 
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       {/* 2. หุ้มด้วย Auth Controller */}
       <AuthProvider>
+        <ThemeProvider>
         <App />
         <ToastContainer
           position="top-right"
@@ -28,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           pauseOnHover
           theme="light"
         />
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

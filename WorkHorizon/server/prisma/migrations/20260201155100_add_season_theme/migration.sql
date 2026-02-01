@@ -372,6 +372,7 @@ CREATE TABLE `FreelancerWork` (
     `isReceiverConfirmed` BOOLEAN NOT NULL DEFAULT false,
     `serviceConversationId` VARCHAR(191) NULL,
 
+    UNIQUE INDEX `FreelancerWork_serviceConversationId_key`(`serviceConversationId`),
     INDEX `FreelancerWork_freelancerId_idx`(`freelancerId`),
     INDEX `FreelancerWork_jobSeekerId_idx`(`jobSeekerId`),
     INDEX `FreelancerWork_freelancerProfileId_idx`(`freelancerProfileId`),
@@ -451,6 +452,23 @@ CREATE TABLE `ContactRequest` (
     `subject` VARCHAR(191) NOT NULL,
     `message` TEXT NOT NULL,
     `status` VARCHAR(191) NOT NULL DEFAULT 'PENDING',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `SeasonTheme` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT false,
+    `primaryColor` VARCHAR(191) NOT NULL,
+    `secondaryColor` VARCHAR(191) NOT NULL,
+    `backgroundColor` VARCHAR(191) NOT NULL,
+    `textColor` VARCHAR(191) NOT NULL DEFAULT '#1e293b',
+    `decorationImage` VARCHAR(191) NULL,
+    `isDarkTheme` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -591,6 +609,9 @@ ALTER TABLE `FreelancerWork` ADD CONSTRAINT `FreelancerWork_freelancerId_fkey` F
 
 -- AddForeignKey
 ALTER TABLE `FreelancerWork` ADD CONSTRAINT `FreelancerWork_freelancerProfileId_fkey` FOREIGN KEY (`freelancerProfileId`) REFERENCES `FreelancerProfile`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `FreelancerWork` ADD CONSTRAINT `FreelancerWork_serviceConversationId_fkey` FOREIGN KEY (`serviceConversationId`) REFERENCES `ServiceConversation`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `FreelancerReview` ADD CONSTRAINT `FreelancerReview_workId_fkey` FOREIGN KEY (`workId`) REFERENCES `FreelancerWork`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

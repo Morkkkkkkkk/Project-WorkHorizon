@@ -590,3 +590,25 @@ model ContactRequest {
   createdAt DateTime @default(now()) // วันที่ส่งข้อความ
   updatedAt DateTime @updatedAt // วันที่อัปเดตล่าสุด
 }
+
+// ==========================================
+// --- 7. Seasonal Theme System (ระบบธีมตามฤดูกาล) ---
+// ==========================================
+model SeasonTheme {
+  id          String   @id @default(cuid())
+  name        String   // ชื่อธีม เช่น "Christmas", "Songkran", "Halloween"
+  isActive    Boolean  @default(false) // สถานะใช้งาน (ควรมี active ได้แค่ 1 อัน)
+  
+  // การตั้งค่าสี (เก็บเป็น Hex Code เช่น #ff0000)
+  primaryColor    String // สีหลัก (ปุ่ม, Header)
+  secondaryColor  String // สีรอง
+  backgroundColor String // สีพื้นหลัง หรือ Gradient
+  textColor       String @default("#1e293b") // สีตัวอักษร
+  
+  // ของตกแต่งพิเศษ
+  decorationImage String? // URL รูปตกแต่ง (เช่น หิมะตก, โคมไฟ)
+  isDarkTheme     Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
