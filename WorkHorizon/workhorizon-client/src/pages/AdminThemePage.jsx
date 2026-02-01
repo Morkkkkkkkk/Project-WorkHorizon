@@ -287,7 +287,7 @@ const AdminThemePage = () => {
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-2">
+                        <label className=" text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-2">
                             <ImageIcon size={16} /> Decoration Image URL
                         </label>
                         <input 
