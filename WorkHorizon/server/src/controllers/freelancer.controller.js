@@ -749,3 +749,32 @@ export const cancelWork = async (req, res, next) => {
     next(error);
   }
 };
+
+// GET /api/freelancers/works
+export const getMyWorks = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // ค้นหาจาก freelancerId แทน jobSeekerId
+    const works = await prisma.freelancerWork.findMany({
+      where: { freelancerId: userId }, 
+      include: {
+        jobSeeker: { // ดึงข้อมูลผู้ว่าจ้างมาแสดง
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImageUrl: true,
+            email: true,
+          },
+        },
+        review: true,
+        disputeTicket: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(works);
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Briefcase, CheckCircle, Star, Search, MessageSquare,
-    Clock, Filter, X, ChevronRight, AlertCircle, Plus
+    Clock, X, ChevronRight, CreditCard
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,10 +11,7 @@ import Modal from '../components/Modal';
 import { toast } from 'react-toastify';
 import PaymentModal from '../components/PaymentModal';
 import { BACKEND_URL } from '../api/apiClient';
-
-// Import ส่วนที่เพิ่มใหม่
 import CreateDisputeModal from "../components/CreateDisputeModal";
-import PaymentTransferForm from "../components/PaymentTransferForm"; // Component ที่สร้างไว้ก่อนหน้า
 
 const MyHiresPage = () => {
     const [works, setWorks] = useState([]);
@@ -33,9 +30,8 @@ const MyHiresPage = () => {
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState('');
 
-    // ✅ State ที่เพิ่มเข้ามาสำหรับระบบใหม่
+    // Dispute State
     const [showDisputeModal, setShowDisputeModal] = useState(false);
-    const [showTransferForm, setShowTransferForm] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -54,14 +50,25 @@ const MyHiresPage = () => {
         }
     };
 
+    // ✅ ฟังก์ชันเปิด Modal จ่ายเงิน (รวมทุกช่องทาง)
+    const handleOpenPayment = (work) => {
+        setPaymentData({
+            workId: work.id,
+            amount: work.price,
+            title: work.jobTitle,
+            receiverId: work.freelancerId,
+            promptPayId: work.freelancerProfile?.promptPayNumber 
+        });
+        setIsPaymentOpen(true);
+    };
+
     // ฟังก์ชันจัดการสถานะ
     const handleStatusUpdate = async (workId, newStatus) => {
-        // CASE A: จ่ายเงิน (ปรับปรุงให้เปิดหน้าโอนเงิน)
+        // CASE A: จ่ายเงิน -> เปิด Modal
         if (newStatus === 'IN_PROGRESS') {
             const workToPay = works.find(w => w.id === workId);
             if (workToPay) {
-                setSelectedWork(workToPay);
-                setShowTransferForm(true); // เปิดหน้าจอ QR/โอนเงิน
+                handleOpenPayment(workToPay);
             }
             return;
         }
@@ -81,11 +88,10 @@ const MyHiresPage = () => {
 
     const handlePaymentSuccess = () => {
         setIsPaymentOpen(false);
-        setShowTransferForm(false);
-        toast.success('แจ้งโอนเงินเรียบร้อย รอการตรวจสอบ! 🚀');
+        toast.success('ชำระเงินเรียบร้อย! 🚀');
         fetchHires();
-        setActiveTab('ACTIVE');
-        setSelectedWork(null);
+        // ปิด Drawer เพื่อให้เห็นสถานะใหม่ในตาราง หรือจะโหลดใหม่ก็ได้
+        setSelectedWork(null); 
     };
 
     // Review Logic
@@ -121,8 +127,6 @@ const MyHiresPage = () => {
         const matchesSearch = work.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (work.freelancerProfile?.user?.firstName || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-        if (activeTab === 'ALL') return matchesSearch;
-
         if (activeTab === 'ACTIVE') {
             return matchesSearch && ['IN_PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'DISPUTED'].includes(work.status);
         }
@@ -146,7 +150,7 @@ const MyHiresPage = () => {
             'REFUNDED': 'bg-slate-200 text-slate-600'
         };
         const labels = {
-            'OFFER_PENDING': 'รอตอบรับ',
+            'OFFER_PENDING': 'รอตอบรับ/ชำระเงิน',
             'IN_PROGRESS': 'กำลังทำ',
             'SUBMITTED': 'รอตรวจงาน',
             'COMPLETED': 'เสร็จสิ้น',
@@ -175,14 +179,6 @@ const MyHiresPage = () => {
             {label}
         </button>
     );
-
-
-    const generateQRUrl = (phone, amount) => {
-        // ใช้ Service ของ promptpay.io ซึ่งง่ายที่สุดสำหรับโปรเจกต์ส่งอาจารย์
-        // รูปแบบ: https://promptpay.io/{เบอร์โทร}/{ยอดเงิน}.png
-        const cleanPhone = phone.replace(/\D/g, ''); // ลบขีดออกให้เหลือแค่ตัวเลข
-        return `https://promptpay.io/${cleanPhone}/${amount}.png`;
-    };
 
     return (
         <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans relative overflow-x-hidden" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
@@ -234,7 +230,7 @@ const MyHiresPage = () => {
                                     <tr><td colSpan="5" className="p-10 text-center text-slate-400">ไม่พบรายการงานในหมวดหมู่นี้</td></tr>
                                 ) : (
                                     filteredWorks.map(work => (
-                                        <tr key={work.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => { setSelectedWork(work); setShowTransferForm(false); }}>
+                                        <tr key={work.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setSelectedWork(work)}>
                                             <td className="p-4">
                                                 <p className="font-bold text-slate-800 truncate max-w-[200px]">{work.jobTitle}</p>
                                                 <p className="text-xs text-slate-400">ID: {work.id.slice(-6)}</p>
@@ -253,7 +249,7 @@ const MyHiresPage = () => {
                                             <td className="p-4">{getStatusBadge(work.status)}</td>
                                             <td className="p-4 text-right">
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedWork(work); setShowTransferForm(false); }}
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedWork(work); }}
                                                     className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all inline-flex items-center gap-1"
                                                 >
                                                     รายละเอียด <ChevronRight size={16} />
@@ -289,118 +285,76 @@ const MyHiresPage = () => {
                         {/* Body */}
                         <div className="flex-1 space-y-6">
                             <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                                {showTransferForm && selectedWork.status === 'OFFER_PENDING' ? (
-                                    <div className="space-y-4">
-
-                                      
-
-                                        <button onClick={() => setShowTransferForm(false)} className="text-xs text-blue-600 font-bold mb-2 flex items-center gap-1">
-                                            ← กลับไปหน้ารายละเอียด
-                                        </button>
-
-                                        {/* ส่วนแสดง QR Code ที่เพิ่มเข้ามา */}
-                                        <div className="bg-white p-4 rounded-2xl border-2 border-blue-500 flex flex-col items-center shadow-inner">
-                                            <h4 className="text-sm font-bold text-blue-700 mb-3 text-center">สแกนจ่ายเงิน (PromptPay)</h4>
-
-                                            {/* ดึงเบอร์จาก selectedWork.freelancerProfile.promptPayNumber */}
-                                            {/* <img
-                                               src={generateQRUrl(selectedWork.freelancerProfile?.promptPayNumber || "0812345678", selectedWork.price)}
-                                               alt="QR Code"
-                                                className="w-48 h-48 rounded-lg shadow-sm mb-3"
-                                            /> */}
-
-                                           // ส่วนแสดง QR Code ใน MyHiresPage.jsx
-                                            <img
-                                                src={`https://promptpay.io/${selectedWork.freelancerProfile?.promptPayNumber}/${selectedWork.price}.png`}
-                                                alt="QR Code"
-                                                className="w-48 h-48 rounded-lg"
-                                                // 💡 ใส่ onError เพื่อเช็คว่าถ้าเบอร์ไม่มาให้โชว์รูปสำรอง
-                                                onError={(e) => { e.target.src = "https://placehold.co/200?text=Waiting+for+Payment+Info"; }}
-                                            />
-
-                                            <div className="text-center">
-                                                <p className="text-xs text-gray-500">โอนเข้าบัญชีกลาง (Admin)</p>
-                                                <p className="text-lg font-mono font-bold text-slate-800">฿{parseFloat(selectedWork.price).toLocaleString()}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* ฟอร์มส่งสลิปเดิมของคุณ */}
-                                        <PaymentTransferForm
-                                            workId={selectedWork.id}
-                                            amount={selectedWork.price}
-                                            // ✅ ส่งเบอร์ที่ดึงมาจาก freelancerProfile
-                                            promptPayId={selectedWork.freelancerProfile?.promptPayNumber}
-                                            onFetchData={handlePaymentSuccess}
-                                        />
+                                <div>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <p className="text-xs font-bold text-slate-400 uppercase">สถานะงาน</p>
+                                        {getStatusBadge(selectedWork.status)}
                                     </div>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between items-center mb-4">
-                                            <p className="text-xs font-bold text-slate-400 uppercase">สถานะงาน</p>
-                                            {getStatusBadge(selectedWork.status)}
-                                        </div>
-                                        <div className="text-3xl font-bold text-slate-800 mb-6">฿{parseFloat(selectedWork.price).toLocaleString()}</div>
+                                    <div className="text-3xl font-bold text-slate-800 mb-6">฿{parseFloat(selectedWork.price).toLocaleString()}</div>
 
-                                        <div className="space-y-3">
-                                            {selectedWork.status === 'OFFER_PENDING' && !selectedWork.isPayerPaid && (
-                                                <button
-                                                    onClick={() => setShowTransferForm(true)}
-                                                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
-                                                >
-                                                    ชำระเงิน & เริ่มงาน
+                                    <div className="space-y-3">
+                                        {/* ปุ่มจ่ายเงิน (OFFER_PENDING และยังไม่จ่าย) */}
+                                        {selectedWork.status === 'OFFER_PENDING' && !selectedWork.isPayerPaid && (
+                                            <button
+                                                onClick={() => handleOpenPayment(selectedWork)}
+                                                className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <CreditCard size={20} /> ชำระเงิน & เริ่มงาน
+                                            </button>
+                                        )}
+
+                                        {/* แจ้งเตือนเมื่อจ่ายแล้ว */}
+                                        {selectedWork.isPayerPaid && !selectedWork.isReceiverConfirmed && (
+                                            <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg text-center">
+                                                <p className="text-orange-700 text-sm font-bold">แจ้งโอนเงินเรียบร้อย</p>
+                                                <p className="text-xs text-orange-600">รอฟรีแลนซ์/แอดมิน ตรวจสอบยอดเงิน</p>
+                                            </div>
+                                        )}
+
+                                        {/* ปุ่มอนุมัติงาน / ขอแก้ไข */}
+                                        {selectedWork.status === 'SUBMITTED' && (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button onClick={() => handleStatusUpdate(selectedWork.id, 'COMPLETED')} className="py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">อนุมัติงาน</button>
+                                                <button onClick={() => handleStatusUpdate(selectedWork.id, 'REVISION_REQUESTED')} className="py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all">ขอแก้ไข</button>
+                                            </div>
+                                        )}
+
+                                        {/* ปุ่มรีวิว */}
+                                        {selectedWork.status === 'COMPLETED' && !selectedWork.review && (
+                                            <button onClick={() => handleOpenReviewModal(selectedWork.id)} className="w-full py-3 bg-yellow-400 text-white font-bold rounded-xl hover:bg-yellow-50 shadow-lg shadow-yellow-200 transition-all flex items-center justify-center gap-2">
+                                                <Star size={18} fill="white" /> ให้คะแนนรีวิว
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Dispute Section */}
+                                    <div className="mt-4 pt-4 border-t border-slate-200">
+                                        {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
+                                            <div className="text-center">
+                                                <p className="text-xs text-slate-400 mb-2">หากพบปัญหา สามารถแจ้งเจ้าหน้าที่ได้</p>
+                                                <button onClick={() => setShowDisputeModal(true)} className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto">
+                                                    <MessageSquare size={14} /> แจ้งปัญหา / ขอคืนเงิน
                                                 </button>
-                                            )}
+                                            </div>
+                                        )}
 
-                                            {selectedWork.isPayerPaid && !selectedWork.isReceiverConfirmed && (
-                                                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg text-center">
-                                                    <p className="text-orange-700 text-sm font-bold">แจ้งโอนเงินเรียบร้อย</p>
-                                                    <p className="text-xs text-orange-600">รอฟรีแลนซ์ตรวจสอบสลิปบัญชีกลาง</p>
-                                                </div>
-                                            )}
-
-                                            {selectedWork.status === 'SUBMITTED' && (
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <button onClick={() => handleStatusUpdate(selectedWork.id, 'COMPLETED')} className="py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">อนุมัติงาน</button>
-                                                    <button onClick={() => handleStatusUpdate(selectedWork.id, 'REVISION_REQUESTED')} className="py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all">ขอแก้ไข</button>
-                                                </div>
-                                            )}
-
-                                            {selectedWork.status === 'COMPLETED' && !selectedWork.review && (
-                                                <button onClick={() => handleOpenReviewModal(selectedWork.id)} className="w-full py-3 bg-yellow-400 text-white font-bold rounded-xl hover:bg-yellow-500 shadow-lg shadow-yellow-200 transition-all flex items-center justify-center gap-2">
-                                                    <Star size={18} fill="white" /> ให้คะแนนรีวิว
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {/* Dispute Section */}
-                                        <div className="mt-4 pt-4 border-t border-slate-200">
-                                            {["IN_PROGRESS", "SUBMITTED", "REVISION_REQUESTED"].includes(selectedWork.status) && (
-                                                <div className="text-center">
-                                                    <p className="text-xs text-slate-400 mb-2">หากพบปัญหา สามารถแจ้งเจ้าหน้าที่ได้</p>
-                                                    <button onClick={() => setShowDisputeModal(true)} className="text-red-500 hover:text-red-700 underline text-sm font-medium transition-colors flex items-center justify-center gap-1 mx-auto">
-                                                        <MessageSquare size={14} /> แจ้งปัญหา / ขอคืนเงิน
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {selectedWork.status === "DISPUTED" && (
-                                                <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="p-2 bg-red-100 rounded-full text-red-600"><MessageSquare size={20} /></div>
-                                                        <div>
-                                                            <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
-                                                            <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่</p>
-                                                        </div>
+                                        {selectedWork.status === "DISPUTED" && (
+                                            <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col gap-3">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="p-2 bg-red-100 rounded-full text-red-600"><MessageSquare size={20} /></div>
+                                                    <div>
+                                                        <h4 className="font-bold text-red-800 text-sm">งานนี้อยู่ระหว่างข้อพิพาท</h4>
+                                                        <p className="text-xs text-red-600 mt-1">กรุณาพูดคุยกับเจ้าหน้าที่</p>
                                                     </div>
-                                                    <button onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm">ไปที่ห้องระงับข้อพิพาท</button>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
+                                                <button onClick={() => navigate(`/dispute-chat/${selectedWork.disputeTicket?.id}`)} className="w-full py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm">ไปที่ห้องระงับข้อพิพาท</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
-                            <Link to={`/chat`} className="flex items-center justify-center gap-2 w-full py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all"><MessageSquare size={18} /> เปิดห้องแชท</Link>
+                            <Link to={`/chat/${selectedWork.serviceConversationId || '#'}`} className="flex items-center justify-center gap-2 w-full py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all"><MessageSquare size={18} /> เปิดห้องแชท</Link>
 
                             <div>
                                 <h3 className="font-bold text-slate-800 mb-2">รายละเอียด</h3>
@@ -422,7 +376,7 @@ const MyHiresPage = () => {
                 </div>
             )}
 
-            {/* Modals */}
+            {/* Payment Modal (รวมทุกช่องทาง) */}
             {paymentData && (
                 <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} paymentData={paymentData} onSuccess={handlePaymentSuccess} />
             )}

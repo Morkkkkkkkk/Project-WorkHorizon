@@ -11,6 +11,7 @@ import {
   submitReview,
   acceptWorkStart,
   cancelWork,
+  getMyWorks
 } from "../controllers/freelancer.controller.js";
 import {
   authenticateToken,
@@ -42,6 +43,9 @@ router.put(
 );
 // POST /api/freelancer/work/confirm-start - Freelance ยืนยันสลิปและเริ่มงาน
 router.post("/work/confirm-start", authenticateToken, acceptWorkStart);
+
+// GET /api/freelancers/works
+router.get("/works", authenticateToken, getMyWorks);
 
 // ✅ API ใหม่: ดึงงานที่ Job Seeker จ้าง (My Hires)
 router.get("/hires", authenticateToken, getMyHires);
